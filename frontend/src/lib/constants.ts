@@ -81,3 +81,19 @@ export const STATUS_LABELS: Record<PromptStatus, string> = {
   published: "已发布",
   rejected: "已驳回",
 };
+
+export const NEWS_CATEGORIES = [
+  "模型发布",
+  "产品动态",
+  "行业观察",
+  "教程实践",
+  "研究论文",
+];
+
+export const NEWS_CATEGORY_COLORS: Record<string, string> = {
+  模型发布: "border-accent/30 bg-accent/10 text-accent",
+  产品动态: "border-mint/30 bg-mint/10 text-mint",
+  行业观察: "border-amber-300/30 bg-amber-300/10 text-amber-200",
+  教程实践: "border-sky-300/30 bg-sky-300/10 text-sky-200",
+  研究论文: "border-violet-300/30 bg-violet-300/10 text-violet-200",
+};

@@ -21,8 +21,10 @@ from sqlalchemy import select  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.database import SessionLocal, init_db  # noqa: E402
 from app.main import seed_admin  # noqa: E402
+from app.models.news import NewsArticle  # noqa: E402
 from app.models.prompt import Prompt  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.schemas.news import NewsArticleCreate, NewsStatus  # noqa: E402
 from app.schemas.prompt import (  # noqa: E402
     AssetRole,
     CreateStatus,
@@ -32,6 +34,7 @@ from app.schemas.prompt import (  # noqa: E402
     PromptType,
     Visibility,
 )
+from app.services.news_service import create_news  # noqa: E402
 from app.services.prompt_service import create_prompt, review_prompt  # noqa: E402
 
 
@@ -179,12 +182,92 @@ DEMOS = [
     },
 ]
 
+NEWS = [
+    {
+        "title": "示例资讯：图像模型的文字渲染正在变稳",
+        "summary": (
+            "（演示数据）从海报标题到界面文案，图像生成的文字准确率与排版"
+            "一致性正在成为新一轮模型竞争的重点。"
+        ),
+        "category": "模型发布",
+        "source_name": "Promptary 编辑部",
+        "source_url": "https://example.com/ai-news/text-rendering",
+        "featured": True,
+        "colors": ((18, 32, 74), (6, 10, 28), (122, 170, 255)),
+        "variant": 11,
+        "content": (
+            "## 为什么文字渲染重要\n\n"
+            "过去一年，图像模型在光影、材质和构图上的进步已经非常明显，"
+            "但海报标题、商品包装和界面文案仍然是高频失败场景。文字一旦"
+            "出现错字或扭曲，整张图就很难直接用于商业交付。\n\n"
+            "## 创作者的应对方式\n\n"
+            "- 把关键文字放在短句或单词级别，减少模型长文本对齐压力\n"
+            "- 先生成无字版面，再用设计工具完成排版\n"
+            "- 保留种子与参数，针对同一构图做小步迭代\n\n"
+            "## 下一步观察\n\n"
+            "文字能力提升后，提示词会从“描述画面”逐渐转向“描述版面、"
+            "字体气质和信息层级”。这会改变品牌视觉与电商主图的工作流。"
+        ),
+    },
+    {
+        "title": "示例资讯：视频生成的工作流正在从抽卡走向可控",
+        "summary": (
+            "（演示数据）首尾帧、镜头运动和局部重绘，让视频生成开始进入"
+            "可重复执行的创作流程。"
+        ),
+        "category": "产品动态",
+        "source_name": "Promptary 编辑部",
+        "source_url": "https://example.com/ai-news/video-workflow",
+        "featured": False,
+        "colors": ((42, 20, 58), (10, 6, 18), (220, 120, 255)),
+        "variant": 12,
+        "content": (
+            "## 从单次生成到镜头设计\n\n"
+            "早期视频生成更像抽卡：写好提示词，等待一个可用的片段。现在"
+            "越来越多产品开始提供首尾帧控制、镜头路径和局部重绘，创作者"
+            "可以把一个镜头拆成可调整的步骤。\n\n"
+            "## 一个可复用的流程\n\n"
+            "- 先用图像模型确定关键帧和美术风格\n"
+            "- 用首尾帧约束主体位置与镜头方向\n"
+            "- 分成短片段生成，再在剪辑软件中完成节奏\n"
+            "- 对失败片段只重绘局部，而不是整段重来\n\n"
+            "这种流程降低了随机性，也让参数记录和版本管理变得更重要。"
+        ),
+    },
+    {
+        "title": "示例资讯：让提示词可复用的五个迭代习惯",
+        "summary": (
+            "（演示数据）记录变量、控制单一变化、保留失败样本，比不断"
+            "堆叠形容词更容易得到稳定结果。"
+        ),
+        "category": "教程实践",
+        "source_name": "Promptary 编辑部",
+        "source_url": "https://example.com/ai-news/prompt-iteration",
+        "featured": False,
+        "colors": ((20, 50, 44), (6, 18, 16), (110, 240, 190)),
+        "variant": 13,
+        "content": (
+            "## 把提示词当作实验记录\n\n"
+            "高质量提示词往往不是一次写出来的，而是通过小步迭代找到的。"
+            "把每次改动控制在一个变量上，才能判断究竟是什么带来了差异。\n\n"
+            "## 五个习惯\n\n"
+            "- 固定主体、风格、构图三段结构，避免要素互相污染\n"
+            "- 记录模型、步数、CFG、种子和宽高比\n"
+            "- 一次只改一个关键词或一个参数\n"
+            "- 保留失败样本，标注失败原因\n"
+            "- 为常用场景建立自己的基础模板\n\n"
+            "当提示词可以被解释、被复现，它才真正成为可积累的创作资产。"
+        ),
+    },
+]
+
 
 async def main() -> None:
     await init_db()
     await seed_admin()
 
     created = 0
+    created_news = 0
     async with SessionLocal() as db:
         admin = (
             await db.execute(
@@ -255,7 +338,41 @@ async def main() -> None:
             created += 1
             print(f"created: {prompt.title} -> /prompts/{prompt.slug}")
 
-    print(f"done, created {created} demo prompt(s)")
+        for demo in NEWS:
+            existing_news = await db.scalar(
+                select(NewsArticle.id).where(NewsArticle.title == demo["title"])
+            )
+            if existing_news is not None:
+                print(f"skip news: {demo['title']}")
+                continue
+
+            cover_data, cover_width, cover_height = make_image(
+                demo["colors"],
+                (1200, 630),
+                demo["variant"],
+            )
+            article = await create_news(
+                db,
+                admin,
+                NewsArticleCreate(
+                    title=demo["title"],
+                    summary=demo["summary"],
+                    content=demo["content"],
+                    cover_url=store_image(cover_data, cover_width, cover_height),
+                    category=demo["category"],
+                    source_name=demo["source_name"],
+                    source_url=demo["source_url"],
+                    status=NewsStatus.published,
+                    is_featured=demo["featured"],
+                ),
+            )
+            created_news += 1
+            print(f"created news: {article.title} -> /news/{article.slug}")
+
+    print(
+        f"done, created {created} demo prompt(s) and "
+        f"{created_news} news article(s)"
+    )
 
 
 if __name__ == "__main__":

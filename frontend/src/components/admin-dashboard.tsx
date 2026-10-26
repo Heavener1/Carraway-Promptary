@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Newspaper,
   Users,
   X,
   XCircle,
@@ -129,12 +130,21 @@ export function AdminDashboard() {
             审核用户提交的提示词，维护社区内容质量。
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm text-muted transition hover:text-accent"
-        >
-          返回前台
-        </Link>
+        <div className="flex items-center gap-4 text-sm">
+          <Link
+            href="/admin/news"
+            className="inline-flex items-center gap-1.5 text-muted transition hover:text-accent"
+          >
+            <Newspaper className="h-4 w-4" />
+            资讯管理
+          </Link>
+          <Link
+            href="/"
+            className="text-muted transition hover:text-accent"
+          >
+            返回前台
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

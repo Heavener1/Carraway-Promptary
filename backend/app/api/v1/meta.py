@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from app.core.news import NEWS_CATEGORIES
+
 router = APIRouter(prefix="/meta", tags=["meta"])
 
 PROMPT_TYPES = [
@@ -30,4 +32,5 @@ async def get_options() -> dict:
         "types": PROMPT_TYPES,
         "categories": CATEGORIES,
         "models": MODELS,
+        "news_categories": NEWS_CATEGORIES,
     }

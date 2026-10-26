@@ -24,6 +24,10 @@ function absoluteMediaUrl(path: string | null | undefined): string | undefined {
   return `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${path}`;
 }
 
+function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -99,7 +103,7 @@ export default async function PromptPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <PromptDetailView
         key={prompt.id}

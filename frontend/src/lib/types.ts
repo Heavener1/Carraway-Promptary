@@ -113,6 +113,7 @@ export interface MetaOptions {
   types: PromptTypeOption[];
   categories: string[];
   models: string[];
+  news_categories: string[];
 }
 
 export interface AdminStats {
@@ -150,4 +151,45 @@ export interface FavoriteState {
 export interface FavoriteListResponse {
   items: PromptSummary[];
   total: number;
+}
+
+export type NewsStatus = "draft" | "published";
+
+export interface NewsArticleSummary {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  cover_url: string | null;
+  category: string;
+  source_name: string | null;
+  source_url: string | null;
+  author: UserPublic;
+  status: NewsStatus;
+  is_featured: boolean;
+  view_count: number;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface NewsArticleDetail extends NewsArticleSummary {
+  content: string;
+  updated_at: string;
+}
+
+export interface NewsListResponse {
+  items: NewsArticleSummary[];
+  total: number;
+}
+
+export interface NewsArticleInput {
+  title: string;
+  summary: string | null;
+  content: string;
+  cover_url: string | null;
+  category: string;
+  source_name: string | null;
+  source_url: string | null;
+  status: NewsStatus;
+  is_featured: boolean;
 }

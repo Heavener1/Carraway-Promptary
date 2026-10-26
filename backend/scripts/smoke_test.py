@@ -122,6 +122,66 @@ async def main() -> None:
         assert {tag["name"] for tag in tags.json()["items"]} >= {"赛博朋克", "雨夜"}
         print("tags:", [tag["name"] for tag in tags.json()["items"]])
 
+        news_created = await client.post(
+            "/api/v1/admin/news",
+            json={
+                "title": "新一代图像模型发布",
+                "summary": "面向创作者的图像生成能力更新。",
+                "content": (
+                    "## 核心变化\n\n"
+                    "- 更稳定的文字渲染\n"
+                    "- 更快的生成速度\n\n"
+                    "## 使用建议\n\n"
+                    "先从人像和产品图场景开始测试。"
+                ),
+                "cover_url": media["url"],
+                "category": "模型发布",
+                "source_name": "Promptary 编辑部",
+                "source_url": "https://example.com/news/1",
+                "status": "published",
+                "is_featured": True,
+            },
+        )
+        assert news_created.status_code == 201, news_created.text
+        news = news_created.json()
+        news_id = news["id"]
+        news_slug = news["slug"]
+        assert news["published_at"] is not None
+        assert news["is_featured"] is True
+
+        news_feed = await client.get("/api/v1/news")
+        assert news_feed.status_code == 200, news_feed.text
+        assert news_feed.json()["total"] == 1
+        assert news_feed.json()["items"][0]["slug"] == news_slug
+
+        news_detail = await client.get(f"/api/v1/news/{news_slug}")
+        assert news_detail.status_code == 200, news_detail.text
+        assert news_detail.json()["view_count"] >= 1
+        assert "核心变化" in news_detail.json()["content"]
+
+        unpublished = await client.patch(
+            f"/api/v1/admin/news/{news_id}",
+            json={"status": "draft"},
+        )
+        assert unpublished.status_code == 200, unpublished.text
+        assert unpublished.json()["status"] == "draft"
+        hidden_news = await client.get(f"/api/v1/news/{news_slug}")
+        assert hidden_news.status_code == 404
+        draft_news = await client.get(
+            "/api/v1/admin/news",
+            params={"status": "draft"},
+        )
+        assert draft_news.status_code == 200, draft_news.text
+        assert draft_news.json()["total"] == 1
+
+        republished = await client.patch(
+            f"/api/v1/admin/news/{news_id}",
+            json={"status": "published"},
+        )
+        assert republished.status_code == 200, republished.text
+        assert republished.json()["status"] == "published"
+        print("news: create, publish, detail, unpublish, republish ok")
+
         logout = await client.post("/api/v1/auth/logout")
         assert logout.status_code == 204
 
@@ -188,7 +248,16 @@ async def main() -> None:
 
         forbidden = await client.get("/api/v1/admin/stats")
         assert forbidden.status_code == 403
-        print("rbac: normal user blocked from admin stats")
+        forbidden_news = await client.post(
+            "/api/v1/admin/news",
+            json={
+                "title": "普通用户不应发布的资讯",
+                "content": "这段内容不应该被创建。",
+                "category": "行业观察",
+            },
+        )
+        assert forbidden_news.status_code == 403, forbidden_news.text
+        print("rbac: normal user blocked from admin stats and news")
 
     await engine.dispose()
     print("smoke test passed")

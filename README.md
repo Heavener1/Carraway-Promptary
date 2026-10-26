@@ -11,10 +11,12 @@
 - 首页瀑布流、类型筛选、标签筛选、关键词搜索、游标分页
 - 提示词详情页：媒体画廊、参考图、参数展示、一键复制、相关推荐
 - 社区互动：点赞、收藏、评论，个人收藏页
+- AI 资讯：公开列表 / 分类筛选 / 搜索 / 分页、详情页、编辑精选
+- 资讯后台：新建、编辑、封面上传、草稿 / 发布、下架、删除
 - SEO：服务端渲染、动态 Metadata、Open Graph、JSON-LD
-- 管理后台：待审核队列、统计、通过 / 驳回
+- 管理后台：待审核队列、统计、通过 / 驳回、资讯管理
 
-尚未实现（已在数据模型和目录结构中预留）：评论回复与点赞、关注、通知、AI 资讯采集、论坛发帖、用户管理、邮件验证。
+尚未实现（已在数据模型和目录结构中预留）：评论回复与点赞、关注、通知、资讯 RSS 自动采集、论坛发帖、用户管理、邮件验证。
 
 ---
 
@@ -41,11 +43,12 @@
  └─ FastAPI (api, :8000)
       ├─ /api/v1/auth        注册 / 登录 / 刷新 / 退出
       ├─ /api/v1/prompts     发布 / 列表 / 详情 / 搜索 / 编辑 / 删除
+      ├─ /api/v1/news        AI 资讯列表 / 详情
       ├─ /api/v1/tags        热门标签
       ├─ /api/v1/media       媒体上传
-      ├─ /api/v1/meta        类型 / 分类 / 模型选项
+      ├─ /api/v1/meta        类型 / 分类 / 模型 / 资讯分类选项
       ├─ /api/v1/*           点赞 / 收藏 / 评论
-      └─ /api/v1/admin       审核队列 / 统计
+      └─ /api/v1/admin       审核队列 / 统计 / 资讯 CRUD
            │
            ├─ SQLite（开发） / PostgreSQL（生产）
            └─ 本地 media/ 目录（生产可替换为对象存储）
@@ -72,8 +75,8 @@ Carraway-Promptary/
 │  ├─ tests/
 │  └─ pyproject.toml
 ├─ frontend/
-│  ├─ src/app/           首页、详情、登录、注册、发布、审核、资讯/论坛占位
-│  ├─ src/components/    卡片、瀑布流、发布表单、审核台、复制按钮等
+│  ├─ src/app/           首页、详情、登录、注册、发布、资讯、审核、论坛占位
+│  ├─ src/components/    卡片、瀑布流、发布表单、资讯流/编辑器、审核台等
 │  └─ src/lib/           API 客户端、类型、常量、React Query hooks
 ├─ docker-compose.yml
 ├─ .env.docker.example
@@ -128,7 +131,7 @@ cd backend
 uv run python scripts/seed_demo.py
 ```
 
-会创建 5 条已审核的演示提示词（含本地生成的占位图片），首页立即有内容。
+会创建 5 条已审核的演示提示词和 3 篇已发布资讯（均含本地生成的占位封面），首页与资讯频道立即有内容。脚本按标题幂等，可重复执行。
 
 ### 4. 常用命令
 
@@ -161,6 +164,7 @@ npm run build
 - `prompt_likes` / `prompt_favorites`：用户与提示词的唯一关系，重复请求幂等
 - `prompt_comments`：评论内容、作者与时间，删除时同步维护计数
 - `prompts` 上的 `like_count`、`favorite_count`、`comment_count`、`view_count` 采用原子更新，避免并发覆盖
+- `news_articles`：标题、拼音 slug、摘要、正文、封面、分类、来源、状态、编辑精选、浏览数、发布时间
 
 ### 状态流转
 
@@ -186,6 +190,15 @@ published 被作者修改 ──> pending（重新审核），published_at 清�
 
 - 当前使用 `ILIKE` 匹配标题、正向提示词与简介，中小数据量足够；后续可平滑替换为 Meilisearch。
 - 中文标题通过 `pypinyin` 生成拼音 slug，例如 `晨雾中的山间小屋` → `chen-wu-zhong-de-shan-jian-xiao-wu-xxxxxx`，兼顾可读性与 SEO。
+
+### AI 资讯
+
+- 资讯与提示词分表存储，避免把编辑内容混进用户投稿模型。
+- 状态只有 `draft` / `published`：草稿仅管理员可见，发布后进入公开列表；下架不删除数据。
+- 分类固定为模型发布 / 产品动态 / 行业观察 / 教程实践 / 研究论文，后端校验、前端复用 `/meta/options` 语义。
+- 公开列表使用 offset 分页（资讯量级远小于提示词），按 `published_at DESC, id DESC` 排序；后台按创建时间排序。
+- 正文支持轻量排版：`##` / `###` 小标题、`- ` 列表、空行分段，前端渲染时按纯文本节点输出，不执行 HTML。
+- 详情页输出 `NewsArticle` JSON-LD、Open Graph 与动态 Metadata；来源链接统一 `rel="noopener noreferrer nofollow"`。
 
 ### 媒体上传
 
@@ -227,6 +240,13 @@ published 被作者修改 ──> pending（重新审核），published_at 清�
 | GET / POST | `/api/v1/prompts/{slug}/comments` | 评论列表 / 发布评论 |
 | DELETE | `/api/v1/comments/{comment_id}` | 删除自己的评论（管理员可删任意） |
 | GET | `/api/v1/users/me/favorites` | 我的收藏 |
+| GET | `/api/v1/news` | 公开资讯列表（q/category/limit/offset） |
+| GET | `/api/v1/news/{slug}` | 资讯详情，公开接口自动增加浏览数 |
+| GET | `/api/v1/admin/news` | 资讯管理列表，含草稿（管理员） |
+| GET | `/api/v1/admin/news/{id}` | 资讯完整详情，用于编辑草稿（管理员） |
+| POST | `/api/v1/admin/news` | 新建资讯（管理员） |
+| PATCH | `/api/v1/admin/news/{id}` | 编辑 / 发布 / 下架（管理员） |
+| DELETE | `/api/v1/admin/news/{id}` | 删除资讯（管理员） |
 | GET | `/api/v1/admin/prompts` | 审核列表（管理员） |
 | POST | `/api/v1/admin/prompts/{id}/review` | 通过 / 驳回（管理员） |
 | GET | `/api/v1/admin/stats` | 后台统计（管理员） |
@@ -300,6 +320,8 @@ docker compose up -d --build
 - 上传素材预览与角色切换
 - 点赞 / 收藏 / 评论的乐观更新，收藏夹与详情页状态同步
 - 未登录用户点击互动时自动跳转登录，登录后回到原页面
+- 资讯频道 SSR 首屏、分类切换、搜索防抖、分页加载与骨架屏
+- 资讯后台弹层编辑、封面上传预览、发布状态快捷切换、删除确认
 
 下一步优化：
 
@@ -322,5 +344,6 @@ docker compose up -d --build
 - 视频仅接受浏览器可直接播放的格式，未转码。
 - 本地存储为单实例方案，多副本部署前需切换对象存储。
 - 未实现邮箱验证、找回密码、OAuth 登录。
-- 管理后台目前只有提示词审核与统计，没有用户管理和评论审核。
+- 管理后台目前包含提示词审核、统计和资讯管理，尚未提供用户管理、评论审核与操作日志。
+- AI 资讯目前由管理员手动撰写，未接入 RSS 采集、自动摘要和定时发布。
 - 本地 SQLite 仅用于开发；生产请使用 PostgreSQL + Alembic。
