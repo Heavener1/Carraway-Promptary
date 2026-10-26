@@ -5,10 +5,12 @@ Run with: uv run python scripts/smoke_test.py
 
 import asyncio
 import io
+import json
 import os
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
@@ -24,8 +26,11 @@ os.environ["AUTO_CREATE_TABLES"] = "true"
 import httpx  # noqa: E402
 from PIL import Image  # noqa: E402
 
-from app.core.database import engine, init_db  # noqa: E402
+from app.core.database import SessionLocal, engine, init_db  # noqa: E402
 from app.main import app, seed_admin  # noqa: E402
+from app.models.assistant import AssistantSettings  # noqa: E402
+from app.schemas.assistant import AssistantChatResponse  # noqa: E402
+from app.services.assistant_service import generate_chat_answer  # noqa: E402
 
 
 def png_bytes() -> bytes:
@@ -182,6 +187,126 @@ async def main() -> None:
         assert republished.json()["status"] == "published"
         print("news: create, publish, detail, unpublish, republish ok")
 
+        settings = await client.get("/api/v1/admin/assistant/settings")
+        assert settings.status_code == 200, settings.text
+        assert settings.json()["enabled"] is False
+        assert settings.json()["has_api_key"] is False
+        assert settings.json()["configured"] is False
+
+        status_before = await client.get("/api/v1/assistant/status")
+        assert status_before.status_code == 200, status_before.text
+        assert status_before.json() == {"enabled": False, "configured": False}
+
+        complete_but_off = await client.put(
+            "/api/v1/admin/assistant/settings",
+            json={
+                "enabled": False,
+                "api_url": "http://provider.test/v1/chat/completions",
+                "api_key": "sk-test-secret",
+                "model": "test-model",
+                "system_prompt": "优先推荐站内提示词。",
+            },
+        )
+        assert complete_but_off.status_code == 200, complete_but_off.text
+        saved_settings = complete_but_off.json()
+        assert saved_settings["configured"] is True
+        assert saved_settings["has_api_key"] is True
+        assert saved_settings["api_key_masked"].endswith("cret")
+        assert "sk-test-secret" not in json.dumps(saved_settings)
+        assert "sk-test-secret" not in complete_but_off.text
+
+        async with SessionLocal() as db:
+            settings_row = await db.get(AssistantSettings, 1)
+            assert settings_row is not None
+            assert settings_row.api_key_ciphertext
+            assert settings_row.api_key_ciphertext != "sk-test-secret"
+            assert "sk-test-secret" not in settings_row.api_key_ciphertext
+        print("assistant: admin config stored encrypted and key is masked")
+
+        enabled_settings = await client.put(
+            "/api/v1/admin/assistant/settings",
+            json={"enabled": True},
+        )
+        assert enabled_settings.status_code == 200, enabled_settings.text
+        assert enabled_settings.json()["enabled"] is True
+        status_after = await client.get("/api/v1/assistant/status")
+        assert status_after.json() == {"enabled": True, "configured": True}
+
+        async def fake_generate(
+            _db,
+            *,
+            message,
+            locale,
+            history,
+            transport=None,
+        ):
+            assert message == "推荐一个赛博朋克提示词"
+            assert locale == "zh"
+            return AssistantChatResponse(answer="可以看 [1]。", sources=[])
+
+        with patch(
+            "app.api.v1.assistant.generate_chat_answer",
+            new=fake_generate,
+        ):
+            chat = await client.post(
+                "/api/v1/assistant/chat",
+                json={
+                    "message": "推荐一个赛博朋克提示词",
+                    "locale": "zh",
+                    "history": [],
+                },
+            )
+        assert chat.status_code == 200, chat.text
+        assert chat.json()["answer"] == "可以看 [1]。"
+
+        captured: dict[str, str] = {}
+
+        def provider_handler(request: httpx.Request) -> httpx.Response:
+            captured["authorization"] = request.headers.get("authorization", "")
+            body = json.loads(request.content)
+            captured["system"] = body["messages"][0]["content"]
+            captured["model"] = body["model"]
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "可以参考站内的赛博朋克提示词 [1]。",
+                            }
+                        }
+                    ]
+                },
+            )
+
+        async with SessionLocal() as db:
+            generated = await generate_chat_answer(
+                db,
+                message="赛博朋克雨夜的提示词",
+                locale="zh",
+                history=[],
+                transport=httpx.MockTransport(provider_handler),
+            )
+        assert generated.answer.startswith("可以参考")
+        assert generated.sources
+        assert generated.sources[0].kind == "prompt"
+        assert generated.sources[0].path.startswith("/prompts/")
+        assert captured["authorization"] == "Bearer sk-test-secret"
+        assert captured["model"] == "test-model"
+        assert "赛博朋克雨夜城市" in captured["system"]
+        assert "优先推荐站内提示词" in captured["system"]
+        print("assistant: retrieval, citation sources, provider auth and model ok")
+
+        disabled_settings = await client.put(
+            "/api/v1/admin/assistant/settings",
+            json={"enabled": False},
+        )
+        assert disabled_settings.status_code == 200, disabled_settings.text
+        assert disabled_settings.json()["enabled"] is False
+        disabled_status = await client.get("/api/v1/assistant/status")
+        assert disabled_status.json() == {"enabled": False, "configured": True}
+
         logout = await client.post("/api/v1/auth/logout")
         assert logout.status_code == 204
 
@@ -248,6 +373,13 @@ async def main() -> None:
 
         forbidden = await client.get("/api/v1/admin/stats")
         assert forbidden.status_code == 403
+        forbidden_assistant = await client.get("/api/v1/admin/assistant/settings")
+        assert forbidden_assistant.status_code == 403, forbidden_assistant.text
+        forbidden_assistant_update = await client.put(
+            "/api/v1/admin/assistant/settings",
+            json={"enabled": True},
+        )
+        assert forbidden_assistant_update.status_code == 403
         forbidden_news = await client.post(
             "/api/v1/admin/news",
             json={

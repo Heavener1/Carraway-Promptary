@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     admin_password: str = "admin123456"
     seed_admin: bool = True
 
+    # Public AI assistant guardrails. Values are intentionally conservative;
+    # the admin-managed provider credentials live in the database instead.
+    assistant_rate_limit_per_minute: int = 12
+    assistant_timeout_seconds: float = 45.0
+    # Enable only when a trusted reverse proxy overwrites X-Forwarded-For.
+    trust_proxy_headers: bool = False
+
     @field_validator("media_root")
     @classmethod
     def resolve_media_root(cls, value: Path) -> Path:

@@ -3,17 +3,16 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+
 interface CopyButtonProps {
   text: string;
   label?: string;
   className?: string;
 }
 
-export function CopyButton({
-  text,
-  label = "复制",
-  className = "",
-}: CopyButtonProps) {
+export function CopyButton({ text, label, className = "" }: CopyButtonProps) {
+  const { dict } = useI18n();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -44,7 +43,7 @@ export function CopyButton({
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
-      {copied ? "已复制" : label}
+      {copied ? dict.common.copied : (label ?? dict.common.copy)}
     </button>
   );
 }

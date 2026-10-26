@@ -193,3 +193,48 @@ export interface NewsArticleInput {
   status: NewsStatus;
   is_featured: boolean;
 }
+
+export type AssistantSourceKind = "prompt" | "news";
+
+export interface AssistantSource {
+  index: number;
+  kind: AssistantSourceKind;
+  title: string;
+  path: string;
+  snippet: string | null;
+}
+
+export interface AssistantChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantChatResponse {
+  answer: string;
+  sources: AssistantSource[];
+}
+
+export interface AssistantStatus {
+  enabled: boolean;
+  configured: boolean;
+}
+
+export interface AssistantSettings {
+  enabled: boolean;
+  api_url: string | null;
+  model: string | null;
+  has_api_key: boolean;
+  api_key_masked: string | null;
+  system_prompt: string | null;
+  configured: boolean;
+  updated_at: string | null;
+}
+
+export interface AssistantSettingsInput {
+  enabled: boolean;
+  api_url: string | null;
+  model: string | null;
+  system_prompt: string | null;
+  api_key?: string;
+  clear_api_key?: boolean;
+}

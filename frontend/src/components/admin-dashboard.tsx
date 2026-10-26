@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Bot,
   Check,
   CheckCircle2,
   Clock,
@@ -14,12 +15,13 @@ import {
   XCircle,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { buildQuery, clientFetch, mediaUrl } from "@/lib/api";
-import { STATUS_LABELS, TYPE_LABELS } from "@/lib/constants";
 import { useMe } from "@/lib/hooks";
+import { formatDate } from "@/lib/i18n/format";
 import type {
   AdminPromptListResponse,
   AdminStats,
@@ -27,14 +29,10 @@ import type {
   PromptStatus,
 } from "@/lib/types";
 
-const TABS: { value: PromptStatus; label: string }[] = [
-  { value: "pending", label: "待审核" },
-  { value: "published", label: "已发布" },
-  { value: "rejected", label: "已驳回" },
-  { value: "draft", label: "草稿" },
-];
+const TABS: PromptStatus[] = ["pending", "published", "rejected", "draft"];
 
 export function AdminDashboard() {
+  const { dict, locale } = useI18n();
   const { data: me, isLoading } = useMe();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PromptStatus>("pending");
@@ -93,13 +91,13 @@ export function AdminDashboard() {
   if (!me) {
     return (
       <div className="mx-auto max-w-md rounded-2xl border border-border/80 bg-surface/60 p-8 text-center">
-        <p className="text-sm text-muted">请先登录管理员账号。</p>
-        <Link
+        <p className="text-sm text-muted">{dict.admin.loginRequired}</p>
+        <LocalizedLink
           href="/login"
           className="mt-4 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
         >
-          去登录
-        </Link>
+          {dict.admin.login}
+        </LocalizedLink>
       </div>
     );
   }
@@ -107,13 +105,13 @@ export function AdminDashboard() {
   if (!isAdmin) {
     return (
       <div className="mx-auto max-w-md rounded-2xl border border-border/80 bg-surface/60 p-8 text-center">
-        <p className="text-sm text-muted">当前账号没有管理员权限。</p>
-        <Link
+        <p className="text-sm text-muted">{dict.admin.noPermission}</p>
+        <LocalizedLink
           href="/"
           className="mt-4 inline-flex rounded-lg border border-border px-4 py-2 text-sm transition hover:border-accent/40"
         >
-          返回首页
-        </Link>
+          {dict.admin.backHome}
+        </LocalizedLink>
       </div>
     );
   }
@@ -125,66 +123,73 @@ export function AdminDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">内容审核</h1>
-          <p className="mt-1.5 text-sm text-muted">
-            审核用户提交的提示词，维护社区内容质量。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {dict.admin.title}
+          </h1>
+          <p className="mt-1.5 text-sm text-muted">{dict.admin.description}</p>
         </div>
         <div className="flex items-center gap-4 text-sm">
-          <Link
+          <LocalizedLink
             href="/admin/news"
             className="inline-flex items-center gap-1.5 text-muted transition hover:text-accent"
           >
             <Newspaper className="h-4 w-4" />
-            资讯管理
-          </Link>
-          <Link
+            {dict.admin.newsLink}
+          </LocalizedLink>
+          <LocalizedLink
+            href="/admin/assistant"
+            className="inline-flex items-center gap-1.5 text-muted transition hover:text-accent"
+          >
+            <Bot className="h-4 w-4" />
+            {dict.admin.assistantLink}
+          </LocalizedLink>
+          <LocalizedLink
             href="/"
             className="text-muted transition hover:text-accent"
           >
-            返回前台
-          </Link>
+            {dict.admin.backFront}
+          </LocalizedLink>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
           icon={<FileText className="h-4 w-4" />}
-          label="提示词总数"
+          label={dict.admin.totalPrompts}
           value={stats?.total_prompts ?? 0}
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
-          label="待审核"
+          label={dict.admin.pending}
           value={stats?.pending ?? 0}
           accent
         />
         <StatCard
           icon={<CheckCircle2 className="h-4 w-4" />}
-          label="已发布"
+          label={dict.admin.published}
           value={stats?.published ?? 0}
         />
         <StatCard
           icon={<XCircle className="h-4 w-4" />}
-          label="已驳回"
+          label={dict.admin.rejected}
           value={stats?.rejected ?? 0}
         />
         <StatCard
           icon={<Users className="h-4 w-4" />}
-          label="用户总数"
+          label={dict.admin.totalUsers}
           value={stats?.total_users ?? 0}
         />
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
         {TABS.map((tab) => {
-          const active = status === tab.value;
+          const active = status === tab;
           return (
             <button
-              key={tab.value}
+              key={tab}
               type="button"
               onClick={() => {
-                setStatus(tab.value);
+                setStatus(tab);
                 setRejectingId(null);
               }}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition ${
@@ -193,7 +198,7 @@ export function AdminDashboard() {
                   : "border-border/70 text-muted hover:border-accent/30 hover:text-foreground"
               }`}
             >
-              {tab.label}
+              {dict.status[tab]}
             </button>
           );
         })}
@@ -210,18 +215,18 @@ export function AdminDashboard() {
         </div>
       ) : promptsQuery.isError ? (
         <div className="rounded-2xl border border-border/80 bg-surface/60 px-6 py-12 text-center text-sm text-muted">
-          加载失败，
+          {dict.admin.loadFailed}
           <button
             type="button"
             onClick={() => void promptsQuery.refetch()}
             className="ml-1 text-accent"
           >
-            重试
+            {dict.common.retry}
           </button>
         </div>
       ) : promptItems.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-surface/40 px-6 py-16 text-center">
-          <p className="text-sm text-muted">该状态下暂无内容。</p>
+          <p className="text-sm text-muted">{dict.admin.empty}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -252,7 +257,7 @@ export function AdminDashboard() {
                     />
                   ) : (
                     <div className="grid h-full w-full place-items-center text-xs text-muted">
-                      无预览
+                      {dict.common.noPreview}
                     </div>
                   )}
                 </div>
@@ -260,11 +265,11 @@ export function AdminDashboard() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     <span className="rounded-md border border-border/70 px-1.5 py-0.5">
-                      {TYPE_LABELS[prompt.type]}
+                      {dict.promptTypes[prompt.type].label}
                     </span>
                     <span>{prompt.author.username}</span>
                     <span>·</span>
-                    <span>{prompt.created_at.slice(0, 10)}</span>
+                    <span>{formatDate(prompt.created_at, locale)}</span>
                     <span
                       className={`rounded-md px-1.5 py-0.5 ${
                         prompt.status === "pending"
@@ -274,7 +279,7 @@ export function AdminDashboard() {
                             : "bg-red-400/10 text-red-200"
                       }`}
                     >
-                      {STATUS_LABELS[prompt.status]}
+                      {dict.status[prompt.status]}
                     </span>
                   </div>
                   <h2 className="mt-1.5 truncate text-sm font-medium">
@@ -286,13 +291,13 @@ export function AdminDashboard() {
                     </p>
                   ) : null}
                   <div className="mt-2 flex items-center gap-3 text-[11px] text-muted">
-                    <Link
+                    <LocalizedLink
                       href={`/prompts/${prompt.slug}`}
                       className="inline-flex items-center gap-1 transition hover:text-accent"
                     >
-                      查看详情
+                      {dict.admin.viewDetail}
                       <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    </LocalizedLink>
                     {prompt.tags.length > 0 ? (
                       <span className="truncate">
                         {prompt.tags
@@ -323,7 +328,7 @@ export function AdminDashboard() {
                       ) : (
                         <Check className="h-3.5 w-3.5" />
                       )}
-                      通过
+                      {dict.admin.approve}
                     </button>
                   ) : null}
                   {prompt.status !== "rejected" ? (
@@ -337,7 +342,7 @@ export function AdminDashboard() {
                       className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-400/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/20 disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
-                      驳回
+                      {dict.admin.reject}
                     </button>
                   ) : null}
                 </div>
@@ -349,7 +354,7 @@ export function AdminDashboard() {
                       onChange={(event) =>
                         setRejectReason(event.target.value)
                       }
-                      placeholder="填写驳回原因"
+                      placeholder={dict.admin.rejectPlaceholder}
                       maxLength={500}
                       className="h-9 w-full rounded-lg border border-border/80 bg-background/60 px-2.5 text-xs outline-none focus:border-red-300/50"
                     />
@@ -366,14 +371,14 @@ export function AdminDashboard() {
                         }
                         className="flex-1 rounded-lg bg-red-400/20 px-2 py-1.5 text-xs text-red-100 transition hover:bg-red-400/30 disabled:opacity-50"
                       >
-                        确认驳回
+                        {dict.admin.confirmReject}
                       </button>
                       <button
                         type="button"
                         onClick={() => setRejectingId(null)}
                         className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted"
                       >
-                        取消
+                        {dict.common.cancel}
                       </button>
                     </div>
                   </div>

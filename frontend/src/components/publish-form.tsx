@@ -1,17 +1,20 @@
 "use client";
 
 import { Loader2, Plus, Trash2, UploadCloud } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { clientFetch, mediaUrl } from "@/lib/api";
 import {
   CATEGORIES,
   MODEL_SUGGESTIONS,
-  PROMPT_TYPES,
+  PROMPT_TYPE_VALUES,
 } from "@/lib/constants";
 import { useMe } from "@/lib/hooks";
+import type { Dictionary } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n/paths";
 import type {
   AssetRole,
   MediaType,
@@ -47,6 +50,7 @@ const EMPTY_PARAMS: ParamDraft = {
 };
 
 export function PublishForm() {
+  const { dict, locale } = useI18n();
   const router = useRouter();
   const { data: me, isLoading } = useMe();
 
@@ -71,9 +75,9 @@ export function PublishForm() {
 
   useEffect(() => {
     if (!isLoading && me === null) {
-      router.replace("/login");
+      router.replace(localizedPath(locale, "/login"));
     }
-  }, [isLoading, me, router]);
+  }, [isLoading, locale, me, router]);
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -112,7 +116,9 @@ export function PublishForm() {
       setAssets((previous) => [...previous, ...next]);
     } catch (uploadError) {
       setError(
-        uploadError instanceof Error ? uploadError.message : "上传失败",
+        uploadError instanceof Error
+          ? uploadError.message
+          : dict.publish.errorUpload,
       );
     } finally {
       setUploading(false);
@@ -133,15 +139,19 @@ export function PublishForm() {
     setError("");
 
     if (title.trim().length < 2) {
-      setError("标题至少需要 2 个字符");
+      setError(dict.publish.errorTitle);
       return;
     }
     if (!positivePrompt.trim()) {
-      setError("请填写正向提示词");
+      setError(dict.publish.errorPositivePrompt);
       return;
     }
     if (status === "pending") {
-      const assetError = validateAssets(type, assets);
+      const assetError = validateAssets(
+        type,
+        assets,
+        dict.publish.assetErrors,
+      );
       if (assetError) {
         setError(assetError);
         return;
@@ -184,11 +194,13 @@ export function PublishForm() {
           visibility,
         }),
       });
-      router.push(`/prompts/${created.slug}`);
+      router.push(localizedPath(locale, `/prompts/${created.slug}`));
       router.refresh();
     } catch (submitError) {
       setError(
-        submitError instanceof Error ? submitError.message : "提交失败",
+        submitError instanceof Error
+          ? submitError.message
+          : dict.publish.errorSubmit,
       );
     } finally {
       setSubmitting(null);
@@ -207,16 +219,18 @@ export function PublishForm() {
   if (!me) {
     return (
       <div className="mx-auto max-w-md rounded-2xl border border-border/80 bg-surface/60 p-8 text-center">
-        <p className="text-sm text-muted">请先登录后再发布提示词。</p>
-        <Link
+        <p className="text-sm text-muted">{dict.publish.loginRequired}</p>
+        <LocalizedLink
           href="/login"
           className="mt-4 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
         >
-          去登录
-        </Link>
+          {dict.publish.login}
+        </LocalizedLink>
       </div>
     );
   }
+
+  const categoryLabels = dict.categories as Record<string, string>;
 
   return (
     <form
@@ -227,22 +241,23 @@ export function PublishForm() {
       className="mx-auto max-w-4xl space-y-6"
     >
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">分享提示词</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          完整记录提示词、模型与参数，让其他人也能复现同样的效果。
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {dict.publish.title}
+        </h1>
+        <p className="mt-1.5 text-sm text-muted">{dict.publish.subtitle}</p>
       </div>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="01" title="创作类型" />
+        <SectionTitle step="01" title={dict.publish.sectionType} />
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {PROMPT_TYPES.map((option) => {
-            const active = type === option.value;
+          {PROMPT_TYPE_VALUES.map((option) => {
+            const active = type === option;
+            const labels = dict.promptTypes[option];
             return (
               <button
-                key={option.value}
+                key={option}
                 type="button"
-                onClick={() => setType(option.value)}
+                onClick={() => setType(option)}
                 className={`rounded-xl border px-4 py-3 text-left transition ${
                   active
                     ? "border-accent/60 bg-accent/10"
@@ -250,15 +265,15 @@ export function PublishForm() {
                 }`}
               >
                 <span className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{option.label}</span>
+                  <span className="text-sm font-medium">{labels.label}</span>
                   <span
                     className={`text-[10px] ${active ? "text-accent" : "text-muted/60"}`}
                   >
-                    {option.short}
+                    {labels.short}
                   </span>
                 </span>
                 <span className="mt-1 block text-[11px] text-muted">
-                  {option.hint}
+                  {labels.hint}
                 </span>
               </button>
             );
@@ -267,38 +282,38 @@ export function PublishForm() {
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="02" title="基本信息" />
+        <SectionTitle step="02" title={dict.publish.sectionBasic} />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="sm:col-span-2">
-            <FieldLabel required>标题</FieldLabel>
+            <FieldLabel required>{dict.publish.titleLabel}</FieldLabel>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={160}
-              placeholder="简洁描述画面，例如：赛博朋克雨夜城市"
+              placeholder={dict.publish.titlePlaceholder}
               className={inputClass}
             />
           </label>
 
           <label className="sm:col-span-2">
-            <FieldLabel>简介</FieldLabel>
+            <FieldLabel>{dict.publish.descriptionLabel}</FieldLabel>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               maxLength={2000}
               rows={3}
-              placeholder="创作思路、适用场景或使用建议（可选）"
+              placeholder={dict.publish.descriptionPlaceholder}
               className={`${inputClass} h-auto py-2.5`}
             />
           </label>
 
           <label>
-            <FieldLabel>模型</FieldLabel>
+            <FieldLabel>{dict.publish.modelLabel}</FieldLabel>
             <input
               value={model}
               onChange={(event) => setModel(event.target.value)}
               list="model-suggestions"
-              placeholder="例如 Flux / Midjourney"
+              placeholder={dict.publish.modelPlaceholder}
               className={inputClass}
             />
             <datalist id="model-suggestions">
@@ -309,16 +324,16 @@ export function PublishForm() {
           </label>
 
           <label>
-            <FieldLabel>分类</FieldLabel>
+            <FieldLabel>{dict.publish.categoryLabel}</FieldLabel>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
               className={inputClass}
             >
-              <option value="">不分类</option>
+              <option value="">{dict.publish.noCategory}</option>
               {CATEGORIES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {categoryLabels[item] ?? item}
                 </option>
               ))}
             </select>
@@ -327,27 +342,27 @@ export function PublishForm() {
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="03" title="提示词内容" />
+        <SectionTitle step="03" title={dict.publish.sectionPrompt} />
         <div className="mt-4 space-y-4">
           <label className="block">
-            <FieldLabel required>正向提示词</FieldLabel>
+            <FieldLabel required>{dict.publish.positivePrompt}</FieldLabel>
             <textarea
               value={positivePrompt}
               onChange={(event) => setPositivePrompt(event.target.value)}
               rows={6}
               maxLength={20000}
-              placeholder="描述你希望生成的画面、风格、光线、构图…"
+              placeholder={dict.publish.positivePromptPlaceholder}
               className={`${inputClass} h-auto py-3 font-mono text-[13px] leading-6`}
             />
           </label>
           <label className="block">
-            <FieldLabel>负向提示词</FieldLabel>
+            <FieldLabel>{dict.publish.negativePrompt}</FieldLabel>
             <textarea
               value={negativePrompt}
               onChange={(event) => setNegativePrompt(event.target.value)}
               rows={3}
               maxLength={20000}
-              placeholder="不希望出现的内容，例如 blurry, low quality（可选）"
+              placeholder={dict.publish.negativePromptPlaceholder}
               className={`${inputClass} h-auto py-3 font-mono text-[13px] leading-6`}
             />
           </label>
@@ -355,10 +370,10 @@ export function PublishForm() {
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="04" title="生成参数" />
+        <SectionTitle step="04" title={dict.publish.sectionParams} />
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <ParamField
-            label="步数"
+            label={dict.params.steps}
             value={params.steps}
             placeholder="28"
             onChange={(value) =>
@@ -366,7 +381,7 @@ export function PublishForm() {
             }
           />
           <ParamField
-            label="引导系数 CFG"
+            label={dict.params.cfg}
             value={params.cfg}
             placeholder="3.5"
             onChange={(value) =>
@@ -374,7 +389,7 @@ export function PublishForm() {
             }
           />
           <ParamField
-            label="种子 Seed"
+            label={dict.params.seed}
             value={params.seed}
             placeholder="12345"
             onChange={(value) =>
@@ -382,7 +397,7 @@ export function PublishForm() {
             }
           />
           <ParamField
-            label="宽高比"
+            label={dict.params.aspect_ratio}
             value={params.aspect_ratio}
             placeholder="16:9"
             onChange={(value) =>
@@ -393,7 +408,7 @@ export function PublishForm() {
             }
           />
           <ParamField
-            label="采样器"
+            label={dict.params.sampler}
             value={params.sampler}
             placeholder="DPM++ 2M"
             onChange={(value) =>
@@ -401,13 +416,11 @@ export function PublishForm() {
             }
           />
         </div>
-        <p className="mt-3 text-[11px] text-muted">
-          只填写你实际使用的参数，留空的项不会展示。
-        </p>
+        <p className="mt-3 text-[11px] text-muted">{dict.publish.paramsHint}</p>
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="05" title="作品素材" />
+        <SectionTitle step="05" title={dict.publish.sectionAssets} />
         <label
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
@@ -432,10 +445,10 @@ export function PublishForm() {
             <UploadCloud className="h-7 w-7 text-accent" />
           )}
           <span className="mt-3 text-sm font-medium">
-            {uploading ? "正在上传…" : "点击或拖拽上传图片 / 视频"}
+            {uploading ? dict.publish.uploading : dict.publish.uploadIdle}
           </span>
           <span className="mt-1 text-[11px] text-muted">
-            支持 JPG、PNG、WebP、GIF、MP4、WebM、MOV
+            {dict.publish.uploadHint}
           </span>
         </label>
 
@@ -477,14 +490,14 @@ export function PublishForm() {
                       }
                       className="h-8 rounded-lg border border-border/80 bg-surface px-2 text-xs outline-none"
                     >
-                      <option value="output">生成结果</option>
-                      <option value="input">参考图</option>
+                      <option value="output">{dict.publish.roleOutput}</option>
+                      <option value="input">{dict.publish.roleInput}</option>
                     </select>
                     <button
                       type="button"
                       onClick={() => removeAsset(asset.id)}
                       className="grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-red-400/10 hover:text-red-300"
-                      aria-label="删除素材"
+                      aria-label={dict.publish.deleteAsset}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -496,27 +509,27 @@ export function PublishForm() {
         ) : null}
 
         <p className="mt-3 text-[11px] text-muted">
-          图生图 / 图生视频请至少上传一张参考图，并保留生成结果。
+          {dict.publish.assetsHint}
         </p>
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface/60 p-5 sm:p-6">
-        <SectionTitle step="06" title="标签与可见性" />
+        <SectionTitle step="06" title={dict.publish.sectionMeta} />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label>
-            <FieldLabel>标签</FieldLabel>
+            <FieldLabel>{dict.publish.tagsLabel}</FieldLabel>
             <input
               value={tags}
               onChange={(event) => setTags(event.target.value)}
-              placeholder="用逗号分隔，例如：赛博朋克, 霓虹, 电影感"
+              placeholder={dict.publish.tagsPlaceholder}
               className={inputClass}
             />
             <span className="mt-1 block text-[11px] text-muted">
-              最多 10 个标签
+              {dict.publish.tagsHint}
             </span>
           </label>
           <label>
-            <FieldLabel>可见性</FieldLabel>
+            <FieldLabel>{dict.publish.visibilityLabel}</FieldLabel>
             <select
               value={visibility}
               onChange={(event) =>
@@ -526,9 +539,11 @@ export function PublishForm() {
               }
               className={inputClass}
             >
-              <option value="public">公开 · 出现在发现页</option>
-              <option value="unlisted">仅链接可见</option>
-              <option value="private">私密 · 仅自己可见</option>
+              <option value="public">{dict.publish.visibilityPublic}</option>
+              <option value="unlisted">
+                {dict.publish.visibilityUnlisted}
+              </option>
+              <option value="private">{dict.publish.visibilityPrivate}</option>
             </select>
           </label>
         </div>
@@ -541,9 +556,7 @@ export function PublishForm() {
       ) : null}
 
       <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted">
-          提交后进入人工审核，通过后才会公开展示。
-        </p>
+        <p className="text-xs text-muted">{dict.publish.submitHint}</p>
         <div className="flex gap-3">
           <button
             type="button"
@@ -554,7 +567,7 @@ export function PublishForm() {
             {submitting === "draft" ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : null}
-            保存草稿
+            {dict.publish.saveDraft}
           </button>
           <button
             type="submit"
@@ -566,7 +579,7 @@ export function PublishForm() {
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            提交审核
+            {dict.publish.submitReview}
           </button>
         </div>
       </div>
@@ -577,6 +590,7 @@ export function PublishForm() {
 function validateAssets(
   type: PromptType,
   assets: AssetDraft[],
+  messages: Dictionary["publish"]["assetErrors"],
 ): string | null {
   const inputs = assets.filter((asset) => asset.role === "input");
   const outputs = assets.filter((asset) => asset.role === "output");
@@ -585,18 +599,18 @@ function validateAssets(
   const hasOutputVideo = outputs.some((asset) => asset.media_type === "video");
 
   if (type === "text_to_image" && !hasOutputImage) {
-    return "文生图至少需要上传一张生成结果图片";
+    return messages.textToImageOutput;
   }
   if (type === "image_to_image") {
-    if (!hasInputImage) return "图生图需要至少一张参考图";
-    if (!hasOutputImage) return "图生图至少需要上传一张生成结果图片";
+    if (!hasInputImage) return messages.imageToImageInput;
+    if (!hasOutputImage) return messages.imageToImageOutput;
   }
   if (type === "text_to_video" && !hasOutputVideo) {
-    return "文生视频需要至少上传一个生成结果视频";
+    return messages.textToVideoOutput;
   }
   if (type === "image_to_video") {
-    if (!hasInputImage) return "图生视频需要至少一张参考图";
-    if (!hasOutputVideo) return "图生视频需要至少上传一个生成结果视频";
+    if (!hasInputImage) return messages.imageToVideoInput;
+    if (!hasOutputVideo) return messages.imageToVideoOutput;
   }
   return null;
 }

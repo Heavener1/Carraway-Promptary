@@ -7,20 +7,24 @@ import {
 import { Loader2, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
 import { buildQuery, clientFetch } from "@/lib/api";
 import { NEWS_CATEGORIES } from "@/lib/constants";
+import { interpolate } from "@/lib/i18n";
 import type { NewsListResponse } from "@/lib/types";
 
 import { NewsCard } from "./news-card";
 
 const PAGE_SIZE = 12;
+const ALL_CATEGORIES = "";
 
 export function NewsFeed({
   initialData,
 }: {
   initialData: NewsListResponse;
 }) {
-  const [category, setCategory] = useState("全部");
+  const { dict } = useI18n();
+  const [category, setCategory] = useState(ALL_CATEGORIES);
   const [search, setSearch] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -31,14 +35,14 @@ export function NewsFeed({
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const isDefaultQuery = category === "全部" && !debouncedQuery;
+  const isDefaultQuery = category === ALL_CATEGORIES && !debouncedQuery;
 
   const newsQuery = useInfiniteQuery({
     queryKey: ["news", category, debouncedQuery],
     queryFn: ({ pageParam }) =>
       clientFetch<NewsListResponse>(
         `/api/v1/news${buildQuery({
-          category: category === "全部" ? undefined : category,
+          category: category || undefined,
           q: debouncedQuery || undefined,
           limit: PAGE_SIZE,
           offset: pageParam,
@@ -61,16 +65,17 @@ export function NewsFeed({
   const articles =
     newsQuery.data?.pages.flatMap((page) => page.items) ?? [];
   const total = newsQuery.data?.pages[0]?.total ?? 0;
+  const categoryLabels = dict.news.categories as Record<string, string>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          {["全部", ...NEWS_CATEGORIES].map((item) => {
+          {[ALL_CATEGORIES, ...NEWS_CATEGORIES].map((item) => {
             const active = category === item;
             return (
               <button
-                key={item}
+                key={item || "all"}
                 type="button"
                 onClick={() => setCategory(item)}
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition ${
@@ -79,7 +84,7 @@ export function NewsFeed({
                     : "border-border/70 text-muted hover:border-accent/30 hover:text-foreground"
                 }`}
               >
-                {item}
+                {item ? (categoryLabels[item] ?? item) : dict.common.all}
               </button>
             );
           })}
@@ -90,7 +95,7 @@ export function NewsFeed({
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索资讯"
+            placeholder={dict.news.feed.searchPlaceholder}
             maxLength={100}
             className="h-10 w-full rounded-xl border border-border/80 bg-background/60 pl-9 pr-9 text-sm outline-none transition placeholder:text-muted/60 focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
           />
@@ -98,6 +103,7 @@ export function NewsFeed({
             <button
               type="button"
               onClick={() => setSearch("")}
+              aria-label={dict.feed.clearSearch}
               className="absolute right-2.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:bg-surface-2 hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
@@ -107,11 +113,11 @@ export function NewsFeed({
       </div>
 
       <div className="flex items-center justify-between text-xs text-muted">
-        <span>{total} 篇资讯</span>
+        <span>{interpolate(dict.news.page.count, { count: total })}</span>
         {newsQuery.isFetching && !newsQuery.isFetchingNextPage ? (
           <span className="flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
-            更新中
+            {dict.news.feed.updating}
           </span>
         ) : null}
       </div>
@@ -127,18 +133,18 @@ export function NewsFeed({
         </div>
       ) : newsQuery.isError ? (
         <div className="rounded-2xl border border-red-400/25 bg-red-400/10 px-5 py-10 text-center text-sm text-red-200">
-          资讯加载失败。
+          {dict.news.feed.loadError}
           <button
             type="button"
             onClick={() => void newsQuery.refetch()}
             className="ml-1 underline"
           >
-            重试
+            {dict.common.retry}
           </button>
         </div>
       ) : articles.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/70 px-6 py-16 text-center">
-          <p className="text-sm text-muted">没有找到匹配的资讯。</p>
+          <p className="text-sm text-muted">{dict.news.feed.empty}</p>
         </div>
       ) : (
         <>
@@ -159,7 +165,7 @@ export function NewsFeed({
                 {newsQuery.isFetchingNextPage ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                加载更多
+                {dict.news.feed.loadMore}
               </button>
             </div>
           ) : null}

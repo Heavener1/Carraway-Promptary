@@ -8,11 +8,14 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
 import { type FormEvent, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { clientFetch, mediaUrl } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
+import { formatDateTime } from "@/lib/i18n/format";
+import { interpolate } from "@/lib/i18n";
 import type {
   CommentListResponse,
   PromptComment,
@@ -29,6 +32,7 @@ export function PromptComments({
   initialData,
   onCountChange,
 }: PromptCommentsProps) {
+  const { dict, locale } = useI18n();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useMe();
   const [content, setContent] = useState("");
@@ -112,10 +116,12 @@ export function PromptComments({
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <MessageCircle className="h-4.5 w-4.5 text-accent" />
-            讨论
+            {dict.comments.title}
           </h2>
           <p className="mt-1 text-xs text-muted">
-            {total > 0 ? `${total} 条讨论` : "还没有讨论，来分享你的想法"}
+            {total > 0
+              ? interpolate(dict.comments.count, { count: total })
+              : dict.comments.emptyHint}
           </p>
         </div>
       </div>
@@ -130,7 +136,7 @@ export function PromptComments({
               onChange={(event) => setContent(event.target.value)}
               maxLength={2000}
               rows={3}
-              placeholder="聊聊生成效果、参数细节，或者给作者一点反馈…"
+              placeholder={dict.comments.placeholder}
               className="w-full resize-y rounded-xl border border-border/80 bg-background/60 px-3.5 py-3 text-sm leading-6 outline-none transition placeholder:text-muted/60 focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
             />
             <div className="flex items-center justify-between gap-3">
@@ -147,20 +153,20 @@ export function PromptComments({
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                发布评论
+                {dict.comments.submit}
               </button>
             </div>
           </form>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 px-4 py-3">
-            <p className="text-sm text-muted">登录后参与讨论</p>
-            <Link
+            <p className="text-sm text-muted">{dict.comments.loginToJoin}</p>
+            <LocalizedLink
               href={loginHref}
               className="inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-medium text-accent transition hover:bg-accent/15"
             >
               <LogIn className="h-3.5 w-3.5" />
-              登录
-            </Link>
+              {dict.comments.login}
+            </LocalizedLink>
           </div>
         )}
 
@@ -206,14 +212,14 @@ export function PromptComments({
                       {comment.author.username}
                     </span>
                     <span className="text-[11px] text-muted">
-                      {comment.created_at.replace("T", " ").slice(0, 16)}
+                      {formatDateTime(comment.created_at, locale)}
                     </span>
                     {comment.is_mine || me?.role === "admin" ? (
                       <button
                         type="button"
                         onClick={() => deleteMutation.mutate(comment.id)}
                         disabled={deleteMutation.isPending}
-                        title="删除评论"
+                        title={dict.comments.deleteComment}
                         className="ml-auto grid h-7 w-7 place-items-center rounded-md text-muted transition hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -229,7 +235,7 @@ export function PromptComments({
           ))
         ) : (
           <div className="rounded-xl border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted">
-            还没有评论
+            {dict.comments.empty}
           </div>
         )}
       </div>

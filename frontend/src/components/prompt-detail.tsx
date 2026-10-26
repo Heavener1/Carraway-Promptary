@@ -12,13 +12,15 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { clientFetch, mediaUrl } from "@/lib/api";
-import { STATUS_LABELS, TYPE_LABELS } from "@/lib/constants";
 import { useMe } from "@/lib/hooks";
+import { formatDate } from "@/lib/i18n/format";
+import { localizedPath } from "@/lib/i18n/paths";
 import type {
   CommentListResponse,
   FavoriteState,
@@ -31,17 +33,6 @@ import { CopyButton } from "./copy-button";
 import { PromptCard } from "./prompt-card";
 import { PromptComments } from "./prompt-comments";
 
-const PARAM_LABELS: Record<string, string> = {
-  steps: "步数",
-  cfg: "引导系数",
-  seed: "种子",
-  aspect_ratio: "宽高比",
-  sampler: "采样器",
-  duration: "时长",
-  fps: "帧率",
-  strength: "重绘幅度",
-};
-
 interface PromptDetailProps {
   prompt: PromptDetail;
   related: PromptSummary[];
@@ -53,6 +44,7 @@ export function PromptDetailView({
   related,
   initialComments,
 }: PromptDetailProps) {
+  const { dict, locale } = useI18n();
   const router = useRouter();
   const { data: me, isLoading: meLoading } = useMe();
 
@@ -117,9 +109,10 @@ export function PromptDetailView({
 
   function requireLogin(): boolean {
     if (me) return true;
-    router.push(
-      `/login?next=${encodeURIComponent(`/prompts/${prompt.slug}`)}`,
-    );
+    const target = `/login?next=${encodeURIComponent(
+      `/prompts/${prompt.slug}`,
+    )}`;
+    router.push(localizedPath(locale, target));
     return false;
   }
 
@@ -151,20 +144,23 @@ export function PromptDetailView({
   const selected = gallery.find((asset) => asset.id === selectedId) ?? gallery[0];
 
   const params = Object.entries(prompt.params ?? {});
+  const paramLabels = dict.params as Record<string, string>;
   const isUnpublished = prompt.status !== "published";
+  const categoryLabel = prompt.category
+    ? ((dict.categories as Record<string, string>)[prompt.category] ??
+      prompt.category)
+    : null;
 
   return (
     <div className="space-y-12">
       {isUnpublished ? (
         <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-          <span className="font-medium">
-            {STATUS_LABELS[prompt.status]}：
-          </span>
+          <span className="font-medium">{dict.status[prompt.status]}：</span>
           {prompt.status === "pending"
-            ? "内容正在审核中，目前仅你和管理员可见。"
+            ? dict.detail.pendingMessage
             : prompt.status === "rejected"
-              ? prompt.reject_reason || "内容未通过审核，请修改后重新提交。"
-              : "这是一份草稿，完善后提交审核即可公开展示。"}
+              ? prompt.reject_reason || dict.detail.rejectedFallback
+              : dict.detail.draftMessage}
         </div>
       ) : null}
 
@@ -242,7 +238,9 @@ export function PromptDetailView({
 
           {inputAssets.length > 0 ? (
             <div className="mt-6">
-              <h2 className="mb-3 text-sm font-medium text-muted">参考图</h2>
+              <h2 className="mb-3 text-sm font-medium text-muted">
+                {dict.detail.referenceImages}
+              </h2>
               <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
                 {inputAssets.map((asset) => (
                   <a
@@ -254,7 +252,7 @@ export function PromptDetailView({
                   >
                     <Image
                       src={mediaUrl(asset.url) ?? ""}
-                      alt="参考图"
+                      alt={dict.detail.referenceAlt}
                       fill
                       sizes="96px"
                       className="object-cover"
@@ -270,16 +268,16 @@ export function PromptDetailView({
           <div className="lg:sticky lg:top-24">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
-                {TYPE_LABELS[prompt.type]}
+                {dict.promptTypes[prompt.type].label}
               </span>
               {prompt.model ? (
                 <span className="rounded-md border border-border/80 px-2 py-1 text-xs text-muted">
                   {prompt.model}
                 </span>
               ) : null}
-              {prompt.category ? (
+              {categoryLabel ? (
                 <span className="rounded-md border border-border/80 px-2 py-1 text-xs text-muted">
-                  {prompt.category}
+                  {categoryLabel}
                 </span>
               ) : null}
             </div>
@@ -313,7 +311,10 @@ export function PromptDetailView({
                   </p>
                   <p className="flex items-center gap-1 text-[11px] text-muted">
                     <CalendarDays className="h-3 w-3" />
-                    {(prompt.published_at ?? prompt.created_at).slice(0, 10)}
+                    {formatDate(
+                      prompt.published_at ?? prompt.created_at,
+                      locale,
+                    )}
                   </p>
                 </div>
               </div>
@@ -349,7 +350,7 @@ export function PromptDetailView({
                     className="h-4 w-4"
                     fill={liked ? "currentColor" : "none"}
                   />
-                  {liked ? "已点赞" : "点赞"}
+                  {liked ? dict.detail.liked : dict.detail.like}
                   <span className="font-mono text-xs">{likeCount}</span>
                 </button>
                 <button
@@ -366,7 +367,7 @@ export function PromptDetailView({
                     className="h-4 w-4"
                     fill={favorited ? "currentColor" : "none"}
                   />
-                  {favorited ? "已收藏" : "收藏"}
+                  {favorited ? dict.detail.favorited : dict.detail.favorite}
                   <span className="font-mono text-xs">{favoriteCount}</span>
                 </button>
               </div>
@@ -380,8 +381,10 @@ export function PromptDetailView({
 
             <section className="mt-6">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-medium">正向提示词</h2>
-                <CopyButton text={prompt.positive_prompt} label="复制" />
+                <h2 className="text-sm font-medium">
+                  {dict.detail.positivePrompt}
+                </h2>
+                <CopyButton text={prompt.positive_prompt} />
               </div>
               <pre className="scrollbar-thin max-h-72 overflow-auto rounded-xl border border-border/70 bg-background/60 p-4 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-foreground/90">
                 {prompt.positive_prompt}
@@ -391,11 +394,10 @@ export function PromptDetailView({
             {prompt.negative_prompt ? (
               <section className="mt-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-sm font-medium">负向提示词</h2>
-                  <CopyButton
-                    text={prompt.negative_prompt}
-                    label="复制"
-                  />
+                  <h2 className="text-sm font-medium">
+                    {dict.detail.negativePrompt}
+                  </h2>
+                  <CopyButton text={prompt.negative_prompt} />
                 </div>
                 <pre className="scrollbar-thin max-h-48 overflow-auto rounded-xl border border-border/70 bg-background/60 p-4 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-muted">
                   {prompt.negative_prompt}
@@ -407,7 +409,7 @@ export function PromptDetailView({
               <section className="mt-6">
                 <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
                   <SlidersHorizontal className="h-3.5 w-3.5 text-muted" />
-                  生成参数
+                  {dict.detail.generatedParams}
                 </h2>
                 <div className="grid grid-cols-2 gap-2">
                   {params.map(([key, value]) => (
@@ -416,7 +418,7 @@ export function PromptDetailView({
                       className="rounded-lg border border-border/60 bg-surface/60 px-3 py-2"
                     >
                       <p className="text-[11px] text-muted">
-                        {PARAM_LABELS[key] ?? key}
+                        {paramLabels[key] ?? key}
                       </p>
                       <p className="mt-0.5 truncate font-mono text-xs">
                         {typeof value === "object"
@@ -442,13 +444,13 @@ export function PromptDetailView({
               </div>
             ) : null}
 
-            <Link
+            <LocalizedLink
               href="/publish"
               className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-border/80 px-4 py-2.5 text-sm text-muted transition hover:border-accent/40 hover:text-foreground"
             >
               <Play className="h-3.5 w-3.5" />
-              也用这个提示词创作
-            </Link>
+              {dict.detail.usePrompt}
+            </LocalizedLink>
           </div>
         </aside>
       </div>
@@ -467,9 +469,9 @@ export function PromptDetailView({
         <section>
           <div className="mb-4 flex items-end justify-between">
             <div>
-              <h2 className="text-lg font-semibold">相关灵感</h2>
+              <h2 className="text-lg font-semibold">{dict.detail.related}</h2>
               <p className="mt-1 text-xs text-muted">
-                同类型或相近标签的提示词
+                {dict.detail.relatedHint}
               </p>
             </div>
           </div>

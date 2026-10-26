@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
 import { clientFetch, mediaUrl } from "@/lib/api";
 import { NEWS_CATEGORIES } from "@/lib/constants";
 import type {
@@ -55,6 +56,7 @@ export function NewsEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { dict } = useI18n();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<NewsDraft>(() => toDraft(article));
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,9 @@ export function NewsEditor({
       update("cover_url", uploaded.url);
     } catch (uploadError) {
       setError(
-        uploadError instanceof Error ? uploadError.message : "封面上传失败",
+        uploadError instanceof Error
+          ? uploadError.message
+          : dict.editor.uploadFailed,
       );
     } finally {
       setUploading(false);
@@ -126,15 +130,15 @@ export function NewsEditor({
     const sourceUrl = form.source_url.trim();
 
     if (title.length < 2) {
-      setError("标题至少需要 2 个字符。");
+      setError(dict.editor.errorTitle);
       return;
     }
     if (content.length < 10) {
-      setError("正文至少需要 10 个字符。");
+      setError(dict.editor.errorContent);
       return;
     }
     if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) {
-      setError("来源链接必须以 http:// 或 https:// 开头。");
+      setError(dict.editor.errorSourceUrl);
       return;
     }
 
@@ -154,6 +158,7 @@ export function NewsEditor({
 
   const cover = mediaUrl(form.cover_url);
   const busy = saveMutation.isPending || uploading;
+  const categoryLabels = dict.news.categories as Record<string, string>;
 
   return (
     <div
@@ -169,11 +174,9 @@ export function NewsEditor({
         <div className="flex items-center justify-between gap-4 border-b border-border/70 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold">
-              {article ? "编辑资讯" : "新增资讯"}
+              {article ? dict.editor.editTitle : dict.editor.createTitle}
             </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              支持使用 ## 小标题与 - 列表组织正文。
-            </p>
+            <p className="mt-0.5 text-xs text-muted">{dict.editor.hint}</p>
           </div>
           <button
             type="button"
@@ -187,35 +190,37 @@ export function NewsEditor({
         <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-xs text-muted">标题</span>
+              <span className="mb-1.5 block text-xs text-muted">
+                {dict.editor.titleLabel}
+              </span>
               <input
                 value={form.title}
                 onChange={(event) => update("title", event.target.value)}
                 required
                 minLength={2}
                 maxLength={200}
-                placeholder="一句话说清这条资讯"
+                placeholder={dict.editor.titlePlaceholder}
                 className="h-11 w-full rounded-xl border border-border/80 bg-background/60 px-3 text-sm outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
               />
             </label>
 
             <label className="block">
               <span className="mb-1.5 block text-xs text-muted">
-                摘要（列表展示）
+                {dict.editor.summaryLabel}
               </span>
               <textarea
                 value={form.summary}
                 onChange={(event) => update("summary", event.target.value)}
                 rows={3}
                 maxLength={500}
-                placeholder="用一两句话概括核心信息"
+                placeholder={dict.editor.summaryPlaceholder}
                 className="w-full resize-y rounded-xl border border-border/80 bg-background/60 px-3 py-2.5 text-sm leading-6 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
               />
             </label>
 
             <label className="block">
               <span className="mb-1.5 flex items-center justify-between text-xs text-muted">
-                <span>正文</span>
+                <span>{dict.editor.contentLabel}</span>
                 <span className="tabular-nums">{form.content.length} / 50000</span>
               </span>
               <textarea
@@ -225,9 +230,7 @@ export function NewsEditor({
                 minLength={10}
                 maxLength={50000}
                 rows={18}
-                placeholder={
-                  "## 发生了什么\n\n在这里展开细节。\n\n## 值得关注\n\n- 要点一\n- 要点二"
-                }
+                placeholder={dict.editor.contentPlaceholder}
                 className="w-full resize-y rounded-xl border border-border/80 bg-background/60 px-3 py-3 font-mono text-[13px] leading-7 outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
               />
             </label>
@@ -235,12 +238,14 @@ export function NewsEditor({
 
           <aside className="space-y-4">
             <div className="space-y-1.5">
-              <span className="block text-xs text-muted">发布状态</span>
+              <span className="block text-xs text-muted">
+                {dict.editor.statusLabel}
+              </span>
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    ["draft", "草稿"],
-                    ["published", "已发布"],
+                    ["draft", dict.editor.draft],
+                    ["published", dict.editor.published],
                   ] as const
                 ).map(([value, label]) => (
                   <button
@@ -260,7 +265,9 @@ export function NewsEditor({
             </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-xs text-muted">分类</span>
+              <span className="mb-1.5 block text-xs text-muted">
+                {dict.editor.categoryLabel}
+              </span>
               <select
                 value={form.category}
                 onChange={(event) => update("category", event.target.value)}
@@ -268,27 +275,29 @@ export function NewsEditor({
               >
                 {NEWS_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
-                    {category}
+                    {categoryLabels[category] ?? category}
                   </option>
                 ))}
               </select>
             </label>
 
             <div className="space-y-2">
-              <span className="block text-xs text-muted">封面</span>
+              <span className="block text-xs text-muted">
+                {dict.editor.coverLabel}
+              </span>
               <div className="overflow-hidden rounded-xl border border-border/80 bg-background/40">
                 {cover ? (
                   <div className="relative aspect-[16/9]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={cover}
-                      alt="封面预览"
+                      alt={dict.editor.coverPreview}
                       className="h-full w-full object-cover"
                     />
                     <button
                       type="button"
                       onClick={() => update("cover_url", "")}
-                      title="移除封面"
+                      title={dict.editor.removeCover}
                       className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg bg-background/80 text-red-200 backdrop-blur transition hover:bg-red-400/20"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -296,7 +305,7 @@ export function NewsEditor({
                   </div>
                 ) : (
                   <div className="grid aspect-[16/9] place-items-center text-xs text-muted">
-                    暂无封面
+                    {dict.editor.noCover}
                   </div>
                 )}
               </div>
@@ -322,13 +331,13 @@ export function NewsEditor({
                   ) : (
                     <ImagePlus className="h-3.5 w-3.5" />
                   )}
-                  上传图片
+                  {dict.editor.uploadCover}
                 </button>
               </div>
               <input
                 value={form.cover_url}
                 onChange={(event) => update("cover_url", event.target.value)}
-                placeholder="或粘贴图片 URL"
+                placeholder={dict.editor.coverUrlPlaceholder}
                 className="h-9 w-full rounded-lg border border-border/80 bg-background/60 px-2.5 text-xs outline-none transition focus:border-accent/60"
               />
             </div>
@@ -343,24 +352,28 @@ export function NewsEditor({
                 className="accent-amber-300"
               />
               <Star className="h-3.5 w-3.5" />
-              设为编辑精选
+              {dict.editor.featured}
             </label>
 
             <div className="space-y-2 border-t border-border/60 pt-4">
               <label className="block">
-                <span className="mb-1.5 block text-xs text-muted">来源名称</span>
+                <span className="mb-1.5 block text-xs text-muted">
+                  {dict.editor.sourceNameLabel}
+                </span>
                 <input
                   value={form.source_name}
                   onChange={(event) =>
                     update("source_name", event.target.value)
                   }
                   maxLength={100}
-                  placeholder="如：OpenAI Blog"
+                  placeholder={dict.editor.sourceNamePlaceholder}
                   className="h-9 w-full rounded-lg border border-border/80 bg-background/60 px-2.5 text-xs outline-none transition focus:border-accent/60"
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs text-muted">来源链接</span>
+                <span className="mb-1.5 block text-xs text-muted">
+                  {dict.editor.sourceUrlLabel}
+                </span>
                 <input
                   value={form.source_url}
                   onChange={(event) =>
@@ -380,7 +393,7 @@ export function NewsEditor({
             {error ??
               (saveMutation.error instanceof Error
                 ? saveMutation.error.message
-                : "保存失败")}
+                : dict.editor.saveFailed)}
           </p>
         ) : null}
 
@@ -391,7 +404,7 @@ export function NewsEditor({
             disabled={saveMutation.isPending}
             className="rounded-lg px-3 py-2 text-sm text-muted transition hover:text-foreground disabled:opacity-50"
           >
-            取消
+            {dict.editor.cancel}
           </button>
           <button
             type="submit"
@@ -403,7 +416,9 @@ export function NewsEditor({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {form.status === "published" ? "保存并发布" : "保存草稿"}
+            {form.status === "published"
+              ? dict.editor.savePublished
+              : dict.editor.saveDraft}
           </button>
         </div>
       </form>

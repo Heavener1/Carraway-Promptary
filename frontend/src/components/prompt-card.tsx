@@ -1,18 +1,26 @@
+"use client";
+
 import { Eye, Heart, MessageCircle, Play, Sparkles } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { mediaUrl } from "@/lib/api";
-import { TYPE_LABELS } from "@/lib/constants";
 import type { PromptSummary } from "@/lib/types";
 
 export function PromptCard({ prompt }: { prompt: PromptSummary }) {
+  const { dict } = useI18n();
   const cover = mediaUrl(prompt.cover_url);
   const isVideo = prompt.cover_media_type === "video";
+  const typeLabel = dict.promptTypes[prompt.type].label;
+  const categoryLabel = prompt.category
+    ? ((dict.categories as Record<string, string>)[prompt.category] ??
+      prompt.category)
+    : null;
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-border/80 bg-surface/70 transition duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-2xl hover:shadow-accent/5">
-      <Link href={`/prompts/${prompt.slug}`} className="block">
+      <LocalizedLink href={`/prompts/${prompt.slug}`} className="block">
         <div className="relative aspect-[4/5] overflow-hidden bg-surface-2">
           {cover ? (
             isVideo ? (
@@ -41,7 +49,7 @@ export function PromptCard({ prompt }: { prompt: PromptSummary }) {
 
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
           <span className="absolute left-3 top-3 rounded-md border border-white/10 bg-black/55 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
-            {TYPE_LABELS[prompt.type]}
+            {typeLabel}
           </span>
           {isVideo ? (
             <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white backdrop-blur">
@@ -49,7 +57,7 @@ export function PromptCard({ prompt }: { prompt: PromptSummary }) {
             </span>
           ) : null}
         </div>
-      </Link>
+      </LocalizedLink>
 
       <div className="space-y-3 p-4">
         <div className="flex items-center gap-2">
@@ -58,16 +66,16 @@ export function PromptCard({ prompt }: { prompt: PromptSummary }) {
               {prompt.model}
             </span>
           ) : null}
-          {prompt.category ? (
-            <span className="text-[11px] text-muted">{prompt.category}</span>
+          {categoryLabel ? (
+            <span className="text-[11px] text-muted">{categoryLabel}</span>
           ) : null}
         </div>
 
-        <Link href={`/prompts/${prompt.slug}`}>
+        <LocalizedLink href={`/prompts/${prompt.slug}`}>
           <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-foreground transition group-hover:text-accent">
             {prompt.title}
           </h3>
-        </Link>
+        </LocalizedLink>
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted">
           <span className="flex min-w-0 items-center gap-1.5">

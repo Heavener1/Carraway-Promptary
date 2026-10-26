@@ -2,15 +2,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bookmark, Loader2, LogIn } from "lucide-react";
-import Link from "next/link";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { clientFetch } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
+import { interpolate } from "@/lib/i18n";
 import type { FavoriteListResponse } from "@/lib/types";
 
 import { PromptCard } from "./prompt-card";
 
 export function FavoritesView() {
+  const { dict } = useI18n();
   const { data: me, isLoading: meLoading } = useMe();
   const favoritesQuery = useQuery<FavoriteListResponse>({
     queryKey: ["favorites"],
@@ -39,17 +42,19 @@ export function FavoritesView() {
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-amber-300/10 text-amber-200">
           <Bookmark className="h-6 w-6" />
         </span>
-        <h2 className="mt-4 text-lg font-semibold">登录后查看收藏</h2>
+        <h2 className="mt-4 text-lg font-semibold">
+          {dict.favorites.loginTitle}
+        </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">
-          收藏喜欢的提示词，随时回来复制参数和继续创作。
+          {dict.favorites.loginDescription}
         </p>
-        <Link
+        <LocalizedLink
           href={`/login?next=${encodeURIComponent("/favorites")}`}
           className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-accent-strong to-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition hover:brightness-110"
         >
           <LogIn className="h-4 w-4" />
-          去登录
-        </Link>
+          {dict.favorites.login}
+        </LocalizedLink>
       </div>
     );
   }
@@ -58,7 +63,7 @@ export function FavoritesView() {
     return (
       <div className="flex items-center gap-2 py-12 text-sm text-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载收藏…
+        {dict.favorites.loading}
       </div>
     );
   }
@@ -72,6 +77,7 @@ export function FavoritesView() {
   }
 
   const favorites = favoritesQuery.data?.items ?? [];
+  const total = favoritesQuery.data?.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -79,19 +85,17 @@ export function FavoritesView() {
         <div>
           <div className="flex items-center gap-2 text-xs text-muted">
             <Bookmark className="h-3.5 w-3.5 text-amber-200" />
-            {favoritesQuery.data?.total ?? 0} 条收藏
+            {interpolate(dict.favorites.count, { count: total })}
           </div>
-          <p className="mt-2 text-sm text-muted">
-            已取消发布或删除的提示词不会出现在这里。
-          </p>
+          <p className="mt-2 text-sm text-muted">{dict.favorites.note}</p>
         </div>
-        <Link
+        <LocalizedLink
           href="/"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 px-3 py-2 text-xs text-muted transition hover:border-accent/40 hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          去发现更多
-        </Link>
+          {dict.favorites.discoverMore}
+        </LocalizedLink>
       </div>
 
       {favorites.length > 0 ? (
@@ -103,16 +107,18 @@ export function FavoritesView() {
       ) : (
         <div className="rounded-2xl border border-dashed border-border/70 px-6 py-16 text-center">
           <Bookmark className="mx-auto h-8 w-8 text-muted/40" />
-          <h2 className="mt-4 text-base font-medium">收藏夹还是空的</h2>
+          <h2 className="mt-4 text-base font-medium">
+            {dict.favorites.emptyTitle}
+          </h2>
           <p className="mt-2 text-sm text-muted">
-            在提示词详情页点击收藏，之后就能从这里快速找到。
+            {dict.favorites.emptyDescription}
           </p>
-          <Link
+          <LocalizedLink
             href="/"
             className="mt-5 inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2 text-xs font-medium text-accent transition hover:bg-accent/15"
           >
-            浏览提示词
-          </Link>
+            {dict.favorites.browse}
+          </LocalizedLink>
         </div>
       )}
     </div>

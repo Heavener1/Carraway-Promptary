@@ -4,8 +4,14 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2, RotateCcw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
 import { buildQuery, clientFetch } from "@/lib/api";
-import { PROMPT_TYPES, SORT_OPTIONS } from "@/lib/constants";
+import {
+  PROMPT_TYPE_VALUES,
+  SORT_VALUES,
+  type SortValue,
+} from "@/lib/constants";
+import { interpolate } from "@/lib/i18n";
 import type {
   PromptListResponse,
   PromptType,
@@ -15,7 +21,6 @@ import type {
 import { PromptCard } from "./prompt-card";
 
 const PAGE_SIZE = 24;
-type SortValue = (typeof SORT_OPTIONS)[number]["value"];
 
 interface PromptFeedProps {
   initialData: PromptListResponse;
@@ -23,6 +28,7 @@ interface PromptFeedProps {
 }
 
 export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
+  const { dict } = useI18n();
   const [type, setType] = useState<PromptType | "">("");
   const [sort, setSort] = useState<SortValue>("latest");
   const [tag, setTag] = useState("");
@@ -107,7 +113,7 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索提示词、风格、模型…"
+            placeholder={dict.feed.searchPlaceholder}
             className="h-11 w-full rounded-xl border border-border/80 bg-surface/80 pl-10 pr-10 text-sm outline-none transition placeholder:text-muted/70 focus:border-accent/60 focus:ring-2 focus:ring-accent/15"
           />
           {query ? (
@@ -115,7 +121,7 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
               type="button"
               onClick={() => setQuery("")}
               className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:bg-surface-2 hover:text-foreground"
-              aria-label="清空搜索"
+              aria-label={dict.feed.clearSearch}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -128,9 +134,9 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
             onChange={(event) => setSort(event.target.value as SortValue)}
             className="h-11 rounded-xl border border-border/80 bg-surface/80 px-3 text-sm text-foreground outline-none transition focus:border-accent/60"
           >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {SORT_VALUES.map((option) => (
+              <option key={option} value={option}>
+                {dict.sort[option]}
               </option>
             ))}
           </select>
@@ -141,7 +147,7 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
               className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-border/80 px-3 text-sm text-muted transition hover:border-accent/40 hover:text-foreground"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              重置
+              {dict.feed.reset}
             </button>
           ) : null}
         </div>
@@ -149,18 +155,23 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
 
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
         <FilterPill active={!type} onClick={() => setType("")}>
-          全部
+          {dict.common.all}
         </FilterPill>
-        {PROMPT_TYPES.map((option) => (
-          <FilterPill
-            key={option.value}
-            active={type === option.value}
-            onClick={() => setType(option.value)}
-          >
-            {option.label}
-            <span className="ml-1.5 text-[10px] opacity-60">{option.short}</span>
-          </FilterPill>
-        ))}
+        {PROMPT_TYPE_VALUES.map((option) => {
+          const typeDict = dict.promptTypes[option];
+          return (
+            <FilterPill
+              key={option}
+              active={type === option}
+              onClick={() => setType(option)}
+            >
+              {typeDict.label}
+              <span className="ml-1.5 text-[10px] opacity-60">
+                {typeDict.short}
+              </span>
+            </FilterPill>
+          );
+        })}
       </div>
 
       {initialTags.length > 0 ? (
@@ -188,13 +199,18 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
       <div className="flex items-center justify-between text-xs text-muted">
         <span>
           {promptsQuery.isPlaceholderData
-            ? "筛选中…"
-            : `共展示 ${items.length} 条${hasFilters ? "匹配结果" : "最新提示词"}`}
+            ? dict.feed.filtering
+            : interpolate(
+                hasFilters
+                  ? dict.feed.showingMatches
+                  : dict.feed.showingLatest,
+                { count: items.length },
+              )}
         </span>
         {promptsQuery.isFetching && !promptsQuery.isFetchingNextPage ? (
           <span className="flex items-center gap-1.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            更新中
+            {dict.feed.updating}
           </span>
         ) : null}
       </div>
@@ -203,27 +219,27 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
         <SkeletonGrid />
       ) : promptsQuery.isError ? (
         <div className="rounded-2xl border border-border/80 bg-surface/60 px-6 py-16 text-center">
-          <p className="text-sm text-muted">加载失败，请确认后端服务已启动。</p>
+          <p className="text-sm text-muted">{dict.feed.loadError}</p>
           <button
             type="button"
             onClick={() => void promptsQuery.refetch()}
             className="mt-4 rounded-lg border border-border px-4 py-2 text-sm transition hover:border-accent/40 hover:text-accent"
           >
-            重试
+            {dict.common.retry}
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/80 bg-surface/40 px-6 py-20 text-center">
-          <p className="text-base font-medium">还没有匹配的提示词</p>
+          <p className="text-base font-medium">{dict.feed.emptyTitle}</p>
           <p className="mt-2 text-sm text-muted">
-            换个关键词或分类试试，也可以成为第一个分享者。
+            {dict.feed.emptyDescription}
           </p>
           <button
             type="button"
             onClick={resetFilters}
             className="mt-5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
           >
-            查看全部
+            {dict.feed.viewAll}
           </button>
         </div>
       ) : (
@@ -240,11 +256,13 @@ export function PromptFeed({ initialData, initialTags }: PromptFeedProps) {
       {promptsQuery.isFetchingNextPage ? (
         <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
-          加载更多…
+          {dict.feed.loadMore}
         </div>
       ) : null}
       {!promptsQuery.hasNextPage && items.length > 0 ? (
-        <p className="py-4 text-center text-xs text-muted/70">已经到底了</p>
+        <p className="py-4 text-center text-xs text-muted/70">
+          {dict.feed.end}
+        </p>
       ) : null}
     </section>
   );

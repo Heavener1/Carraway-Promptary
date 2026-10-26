@@ -2,14 +2,17 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
+import { useI18n } from "@/components/i18n-provider";
+import { LocalizedLink } from "@/components/locale-link";
 import { clientFetch } from "@/lib/api";
+import { localizedPath } from "@/lib/i18n/paths";
 import type { AuthResponse } from "@/lib/types";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
+  const { dict, locale } = useI18n();
   const isLogin = mode === "login";
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -36,7 +39,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       const next = new URLSearchParams(window.location.search).get("next");
       const safeNext =
         next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
-      router.push(safeNext);
+      router.push(localizedPath(locale, safeNext));
       router.refresh();
     },
   });
@@ -46,11 +49,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     setLocalError("");
 
     if (!isLogin && password !== confirmPassword) {
-      setLocalError("两次输入的密码不一致");
+      setLocalError(dict.auth.passwordMismatch);
       return;
     }
     if (!isLogin && username.trim().length < 2) {
-      setLocalError("用户名至少需要 2 个字符");
+      setLocalError(dict.auth.usernameTooShort);
       return;
     }
     mutation.mutate();
@@ -67,18 +70,18 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </span>
           <div>
             <h1 className="text-lg font-semibold">
-              {isLogin ? "欢迎回来" : "加入 Promptary"}
+              {isLogin ? dict.auth.loginWelcome : dict.auth.registerWelcome}
             </h1>
             <p className="text-xs text-muted">
               {isLogin
-                ? "登录后即可发布、收藏和交流提示词"
-                : "创建账号，开始沉淀你的创作方法"}
+                ? dict.auth.loginSubtitle
+                : dict.auth.registerSubtitle}
             </p>
           </div>
         </div>
 
         <form onSubmit={submit} className="mt-7 space-y-4">
-          <Field label="邮箱">
+          <Field label={dict.auth.email}>
             <input
               type="email"
               required
@@ -91,7 +94,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </Field>
 
           {isLogin ? null : (
-            <Field label="用户名">
+            <Field label={dict.auth.username}>
               <input
                 type="text"
                 required
@@ -100,13 +103,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 maxLength={40}
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="展示给社区的名字"
+                placeholder={dict.auth.usernamePlaceholder}
                 className={inputClass}
               />
             </Field>
           )}
 
-          <Field label="密码">
+          <Field label={dict.auth.password}>
             <input
               type="password"
               required
@@ -115,13 +118,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               maxLength={128}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="至少 8 位字符"
+              placeholder={dict.auth.passwordPlaceholder}
               className={inputClass}
             />
           </Field>
 
           {isLogin ? null : (
-            <Field label="确认密码">
+            <Field label={dict.auth.confirmPassword}>
               <input
                 type="password"
                 required
@@ -130,7 +133,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 maxLength={128}
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="再次输入密码"
+                placeholder={dict.auth.confirmPasswordPlaceholder}
                 className={inputClass}
               />
             </Field>
@@ -150,18 +153,18 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : null}
-            {isLogin ? "登录" : "注册并登录"}
+            {isLogin ? dict.auth.login : dict.auth.register}
           </button>
         </form>
 
         <p className="mt-5 text-center text-xs text-muted">
-          {isLogin ? "还没有账号？" : "已经有账号？"}
-          <Link
+          {isLogin ? dict.auth.noAccount : dict.auth.hasAccount}
+          <LocalizedLink
             href={isLogin ? "/register" : "/login"}
             className="ml-1 text-accent transition hover:underline"
           >
-            {isLogin ? "立即注册" : "去登录"}
-          </Link>
+            {isLogin ? dict.auth.registerNow : dict.auth.loginNow}
+          </LocalizedLink>
         </p>
       </div>
     </div>
