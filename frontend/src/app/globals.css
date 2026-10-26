@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #07080b;
+  --color-surface: #0f1117;
+  --color-surface-2: #151821;
+  --color-border: #252a37;
+  --color-foreground: #f2f4fa;
+  --color-muted: #99a2b5;
+  --color-accent: #8b95ff;
+  --color-accent-strong: #6d7cff;
+  --color-mint: #58e0c5;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-background);
+    background-image:
+      radial-gradient(
+        60rem 40rem at 12% -12%,
+        rgba(109, 124, 255, 0.16),
+        transparent 60%
+      ),
+      radial-gradient(
+        45rem 30rem at 92% -4%,
+        rgba(88, 224, 197, 0.08),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(109, 124, 255, 0.35);
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+    backdrop-filter: blur(16px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(
+      100deg,
+      #f2f4fa 10%,
+      #aeb7ff 48%,
+      #58e0c5 90%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #2c3242 transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #2c3242;
+    border-radius: 999px;
+  }
+}
