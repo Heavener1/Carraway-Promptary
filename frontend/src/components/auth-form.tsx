@@ -33,7 +33,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       ),
     onSuccess: (data) => {
       queryClient.setQueryData(["me"], data.user);
-      router.push("/");
+      const next = new URLSearchParams(window.location.search).get("next");
+      const safeNext =
+        next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      router.push(safeNext);
       router.refresh();
     },
   });

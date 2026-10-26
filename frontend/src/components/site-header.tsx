@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Shield, Sparkles } from "lucide-react";
+import { Bookmark, LogOut, Plus, Shield, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -74,6 +74,14 @@ export function SiteHeader() {
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">发布</span>
+              </Link>
+              <Link
+                href="/favorites"
+                title="我的收藏"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 px-3 py-2 text-sm text-muted transition hover:border-amber-300/40 hover:text-amber-200"
+              >
+                <Bookmark className="h-4 w-4" />
+                <span className="hidden xl:inline">收藏</span>
               </Link>
               {me.role === "admin" ? (
                 <Link

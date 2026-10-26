@@ -134,6 +134,58 @@ async def main() -> None:
             },
         )
         assert register.status_code == 201, register.text
+
+        liked = await client.post(f"/api/v1/prompts/{slug}/like")
+        assert liked.status_code == 200, liked.text
+        assert liked.json() == {"liked": True, "like_count": 1}
+        liked_again = await client.post(f"/api/v1/prompts/{slug}/like")
+        assert liked_again.status_code == 200, liked_again.text
+        assert liked_again.json()["like_count"] == 1
+
+        favorited = await client.post(f"/api/v1/prompts/{slug}/favorite")
+        assert favorited.status_code == 200, favorited.text
+        assert favorited.json() == {"favorited": True, "favorite_count": 1}
+
+        comment = await client.post(
+            f"/api/v1/prompts/{slug}/comments",
+            json={"content": "这个光影氛围很棒，参数也很有参考价值。"},
+        )
+        assert comment.status_code == 201, comment.text
+        comment_id = comment.json()["id"]
+        assert comment.json()["is_mine"] is True
+
+        comments = await client.get(f"/api/v1/prompts/{slug}/comments")
+        assert comments.status_code == 200, comments.text
+        assert comments.json()["total"] == 1
+        assert comments.json()["items"][0]["content"].startswith("这个光影")
+
+        interactive_detail = await client.get(f"/api/v1/prompts/{slug}")
+        assert interactive_detail.status_code == 200, interactive_detail.text
+        interactive = interactive_detail.json()
+        assert interactive["liked"] is True
+        assert interactive["favorited"] is True
+        assert interactive["like_count"] == 1
+        assert interactive["comment_count"] == 1
+
+        favorites = await client.get("/api/v1/users/me/favorites")
+        assert favorites.status_code == 200, favorites.text
+        assert favorites.json()["total"] == 1
+        assert favorites.json()["items"][0]["slug"] == slug
+        print("interactions: like, favorite, comment, favorites list ok")
+
+        removed_comment = await client.delete(f"/api/v1/comments/{comment_id}")
+        assert removed_comment.status_code == 204, removed_comment.text
+        unliked = await client.delete(f"/api/v1/prompts/{slug}/like")
+        assert unliked.status_code == 200, unliked.text
+        assert unliked.json() == {"liked": False, "like_count": 0}
+        unfavorited = await client.delete(f"/api/v1/prompts/{slug}/favorite")
+        assert unfavorited.status_code == 200, unfavorited.text
+        assert unfavorited.json() == {"favorited": False, "favorite_count": 0}
+
+        final_detail = await client.get(f"/api/v1/prompts/{slug}")
+        assert final_detail.status_code == 200, final_detail.text
+        assert final_detail.json()["comment_count"] == 0
+
         forbidden = await client.get("/api/v1/admin/stats")
         assert forbidden.status_code == 403
         print("rbac: normal user blocked from admin stats")

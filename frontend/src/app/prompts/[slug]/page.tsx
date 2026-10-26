@@ -4,7 +4,11 @@ import { cache } from "react";
 
 import { PromptDetailView } from "@/components/prompt-detail";
 import { serverFetch } from "@/lib/server-api";
-import type { PromptDetail, PromptListResponse } from "@/lib/types";
+import type {
+  CommentListResponse,
+  PromptDetail,
+  PromptListResponse,
+} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -69,9 +73,14 @@ export default async function PromptPage({
   }
   if (!prompt) notFound();
 
-  const related = await serverFetch<PromptListResponse>(
-    `/api/v1/prompts/${encodeURIComponent(slug)}/related?limit=6`,
-  ).catch(() => ({ items: [], next_cursor: null }));
+  const [related, comments] = await Promise.all([
+    serverFetch<PromptListResponse>(
+      `/api/v1/prompts/${encodeURIComponent(slug)}/related?limit=6`,
+    ).catch(() => ({ items: [], next_cursor: null })),
+    serverFetch<CommentListResponse>(
+      `/api/v1/prompts/${encodeURIComponent(slug)}/comments?limit=100`,
+    ).catch(() => ({ items: [], total: 0 })),
+  ]);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -92,7 +101,12 @@ export default async function PromptPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <PromptDetailView prompt={prompt} related={related.items} />
+      <PromptDetailView
+        key={prompt.id}
+        prompt={prompt}
+        related={related.items}
+        initialComments={comments}
+      />
     </>
   );
 }

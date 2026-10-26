@@ -10,10 +10,11 @@
 - 草稿 / 提交审核 / 管理员审核通过或驳回
 - 首页瀑布流、类型筛选、标签筛选、关键词搜索、游标分页
 - 提示词详情页：媒体画廊、参考图、参数展示、一键复制、相关推荐
+- 社区互动：点赞、收藏、评论，个人收藏页
 - SEO：服务端渲染、动态 Metadata、Open Graph、JSON-LD
 - 管理后台：待审核队列、统计、通过 / 驳回
 
-尚未实现（已在数据模型和目录结构中预留）：评论、点赞、收藏、关注、通知、AI 资讯采集、论坛发帖、用户管理、邮件验证。
+尚未实现（已在数据模型和目录结构中预留）：评论回复与点赞、关注、通知、AI 资讯采集、论坛发帖、用户管理、邮件验证。
 
 ---
 
@@ -43,6 +44,7 @@
       ├─ /api/v1/tags        热门标签
       ├─ /api/v1/media       媒体上传
       ├─ /api/v1/meta        类型 / 分类 / 模型选项
+      ├─ /api/v1/*           点赞 / 收藏 / 评论
       └─ /api/v1/admin       审核队列 / 统计
            │
            ├─ SQLite（开发） / PostgreSQL（生产）
@@ -156,7 +158,9 @@ npm run build
 - `prompts`：类型、标题、slug、正/负向提示词、模型、参数 JSONB/JSON、分类、状态、可见性、计数、发布时间
 - `prompt_assets`：输入/输出素材，支持图片与视频，记录宽高、时长、排序
 - `tags` / `prompt_tags`：多对多标签
-- 计数与状态字段已为互动功能预留：`like_count`、`favorite_count`、`comment_count`、`view_count`
+- `prompt_likes` / `prompt_favorites`：用户与提示词的唯一关系，重复请求幂等
+- `prompt_comments`：评论内容、作者与时间，删除时同步维护计数
+- `prompts` 上的 `like_count`、`favorite_count`、`comment_count`、`view_count` 采用原子更新，避免并发覆盖
 
 ### 状态流转
 
@@ -218,6 +222,11 @@ published 被作者修改 ──> pending（重新审核），published_at 清�
 | GET | `/api/v1/tags` | 热门标签 |
 | GET | `/api/v1/meta/options` | 类型 / 分类 / 模型选项 |
 | POST | `/api/v1/media/upload` | 上传素材（需登录） |
+| POST / DELETE | `/api/v1/prompts/{slug}/like` | 点赞 / 取消点赞 |
+| POST / DELETE | `/api/v1/prompts/{slug}/favorite` | 收藏 / 取消收藏 |
+| GET / POST | `/api/v1/prompts/{slug}/comments` | 评论列表 / 发布评论 |
+| DELETE | `/api/v1/comments/{comment_id}` | 删除自己的评论（管理员可删任意） |
+| GET | `/api/v1/users/me/favorites` | 我的收藏 |
 | GET | `/api/v1/admin/prompts` | 审核列表（管理员） |
 | POST | `/api/v1/admin/prompts/{id}/review` | 通过 / 驳回（管理员） |
 | GET | `/api/v1/admin/stats` | 后台统计（管理员） |
@@ -289,6 +298,8 @@ docker compose up -d --build
 - 游标分页、数据库复合索引、懒加载无限滚动
 - 瀑布流布局、骨架屏、乐观加载更多、复制反馈、暗色 UI、移动端适配
 - 上传素材预览与角色切换
+- 点赞 / 收藏 / 评论的乐观更新，收藏夹与详情页状态同步
+- 未登录用户点击互动时自动跳转登录，登录后回到原页面
 
 下一步优化：
 
@@ -297,7 +308,7 @@ docker compose up -d --build
 - Meilisearch 全文检索与同义词
 - 视频封面、转码、HLS
 - 图片 blurhash 占位与 AVIF 转换
-- 评论、点赞、收藏、关注、通知
+- 评论回复、评论点赞、关注、通知
 - AI 资讯 RSS 采集与 AI 摘要
 - 论坛板块、举报与审核日志
 
@@ -305,9 +316,11 @@ docker compose up -d --build
 
 ## 已知限制
 
-- 互动计数已预留字段，但评论/点赞/收藏接口尚未实现。
+- 评论为单层结构，暂不支持回复、评论点赞、编辑和举报。
+- 互动接口暂无频率限制和敏感词审核，公开上线前需要补上。
+- 未实现关注、通知、@ 提醒和邮件订阅。
 - 视频仅接受浏览器可直接播放的格式，未转码。
 - 本地存储为单实例方案，多副本部署前需切换对象存储。
 - 未实现邮箱验证、找回密码、OAuth 登录。
-- 管理后台目前只有提示词审核与统计，没有用户管理。
+- 管理后台目前只有提示词审核与统计，没有用户管理和评论审核。
 - 本地 SQLite 仅用于开发；生产请使用 PostgreSQL + Alembic。

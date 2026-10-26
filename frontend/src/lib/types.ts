@@ -72,6 +72,8 @@ export interface PromptDetail extends PromptSummary {
   reject_reason: string | null;
   updated_at: string;
   assets: PromptAsset[];
+  liked: boolean;
+  favorited: boolean;
 }
 
 export interface PromptListResponse {
@@ -120,4 +122,32 @@ export interface AdminStats {
   pending: number;
   published: number;
   rejected: number;
+}
+
+export interface PromptComment {
+  id: string;
+  content: string;
+  author: UserPublic;
+  created_at: string;
+  is_mine: boolean;
+}
+
+export interface CommentListResponse {
+  items: PromptComment[];
+  total: number;
+}
+
+export interface LikeState {
+  liked: boolean;
+  like_count: number;
+}
+
+export interface FavoriteState {
+  favorited: boolean;
+  favorite_count: number;
+}
+
+export interface FavoriteListResponse {
+  items: PromptSummary[];
+  total: number;
 }

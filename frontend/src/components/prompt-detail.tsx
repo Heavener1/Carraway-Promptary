@@ -1,6 +1,8 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import {
+  Bookmark,
   CalendarDays,
   Eye,
   Heart,
@@ -11,14 +13,23 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { mediaUrl } from "@/lib/api";
+import { clientFetch, mediaUrl } from "@/lib/api";
 import { STATUS_LABELS, TYPE_LABELS } from "@/lib/constants";
-import type { PromptDetail, PromptSummary } from "@/lib/types";
+import { useMe } from "@/lib/hooks";
+import type {
+  CommentListResponse,
+  FavoriteState,
+  LikeState,
+  PromptDetail,
+  PromptSummary,
+} from "@/lib/types";
 
 import { CopyButton } from "./copy-button";
 import { PromptCard } from "./prompt-card";
+import { PromptComments } from "./prompt-comments";
 
 const PARAM_LABELS: Record<string, string> = {
   steps: "步数",
@@ -34,9 +45,94 @@ const PARAM_LABELS: Record<string, string> = {
 interface PromptDetailProps {
   prompt: PromptDetail;
   related: PromptSummary[];
+  initialComments: CommentListResponse;
 }
 
-export function PromptDetailView({ prompt, related }: PromptDetailProps) {
+export function PromptDetailView({
+  prompt,
+  related,
+  initialComments,
+}: PromptDetailProps) {
+  const router = useRouter();
+  const { data: me, isLoading: meLoading } = useMe();
+
+  const [liked, setLiked] = useState(prompt.liked);
+  const [favorited, setFavorited] = useState(prompt.favorited);
+  const [likeCount, setLikeCount] = useState(prompt.like_count);
+  const [favoriteCount, setFavoriteCount] = useState(prompt.favorite_count);
+  const [commentCount, setCommentCount] = useState(prompt.comment_count);
+  const [actionError, setActionError] = useState("");
+
+  const likeMutation = useMutation({
+    mutationFn: () =>
+      clientFetch<LikeState>(
+        `/api/v1/prompts/${encodeURIComponent(prompt.slug)}/like`,
+        { method: liked ? "DELETE" : "POST" },
+      ),
+    onMutate: () => {
+      const previous = { liked, count: likeCount };
+      setActionError("");
+      setLiked(!liked);
+      setLikeCount((value) => Math.max(0, value + (liked ? -1 : 1)));
+      return previous;
+    },
+    onError: (error, _variables, previous) => {
+      if (previous) {
+        setLiked(previous.liked);
+        setLikeCount(previous.count);
+      }
+      setActionError(error.message);
+    },
+    onSuccess: (state) => {
+      setLiked(state.liked);
+      setLikeCount(state.like_count);
+    },
+  });
+
+  const favoriteMutation = useMutation({
+    mutationFn: () =>
+      clientFetch<FavoriteState>(
+        `/api/v1/prompts/${encodeURIComponent(prompt.slug)}/favorite`,
+        { method: favorited ? "DELETE" : "POST" },
+      ),
+    onMutate: () => {
+      const previous = { favorited, count: favoriteCount };
+      setActionError("");
+      setFavorited(!favorited);
+      setFavoriteCount((value) => Math.max(0, value + (favorited ? -1 : 1)));
+      return previous;
+    },
+    onError: (error, _variables, previous) => {
+      if (previous) {
+        setFavorited(previous.favorited);
+        setFavoriteCount(previous.count);
+      }
+      setActionError(error.message);
+    },
+    onSuccess: (state) => {
+      setFavorited(state.favorited);
+      setFavoriteCount(state.favorite_count);
+    },
+  });
+
+  function requireLogin(): boolean {
+    if (me) return true;
+    router.push(
+      `/login?next=${encodeURIComponent(`/prompts/${prompt.slug}`)}`,
+    );
+    return false;
+  }
+
+  function toggleLike() {
+    if (!requireLogin()) return;
+    likeMutation.mutate();
+  }
+
+  function toggleFavorite() {
+    if (!requireLogin()) return;
+    favoriteMutation.mutate();
+  }
+
   const gallery = useMemo(
     () =>
       prompt.assets.filter((asset) => asset.role === "output").length > 0
@@ -228,14 +324,59 @@ export function PromptDetailView({ prompt, related }: PromptDetailProps) {
                 </span>
                 <span className="flex items-center gap-1">
                   <Heart className="h-3.5 w-3.5" />
-                  {prompt.like_count}
+                  {likeCount}
                 </span>
                 <span className="flex items-center gap-1">
                   <MessageCircle className="h-3.5 w-3.5" />
-                  {prompt.comment_count}
+                  {commentCount}
                 </span>
               </div>
             </div>
+
+            {!isUnpublished ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={toggleLike}
+                  disabled={meLoading || likeMutation.isPending}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition disabled:cursor-wait disabled:opacity-60 ${
+                    liked
+                      ? "border-rose-400/40 bg-rose-400/10 text-rose-300"
+                      : "border-border/80 text-muted hover:border-rose-400/40 hover:text-rose-300"
+                  }`}
+                >
+                  <Heart
+                    className="h-4 w-4"
+                    fill={liked ? "currentColor" : "none"}
+                  />
+                  {liked ? "已点赞" : "点赞"}
+                  <span className="font-mono text-xs">{likeCount}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleFavorite}
+                  disabled={meLoading || favoriteMutation.isPending}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition disabled:cursor-wait disabled:opacity-60 ${
+                    favorited
+                      ? "border-amber-300/40 bg-amber-300/10 text-amber-200"
+                      : "border-border/80 text-muted hover:border-amber-300/40 hover:text-amber-200"
+                  }`}
+                >
+                  <Bookmark
+                    className="h-4 w-4"
+                    fill={favorited ? "currentColor" : "none"}
+                  />
+                  {favorited ? "已收藏" : "收藏"}
+                  <span className="font-mono text-xs">{favoriteCount}</span>
+                </button>
+              </div>
+            ) : null}
+
+            {actionError ? (
+              <p className="mt-3 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-200">
+                {actionError}
+              </p>
+            ) : null}
 
             <section className="mt-6">
               <div className="mb-2 flex items-center justify-between">
@@ -311,6 +452,16 @@ export function PromptDetailView({ prompt, related }: PromptDetailProps) {
           </div>
         </aside>
       </div>
+
+      {!isUnpublished ? (
+        <PromptComments
+          slug={prompt.slug}
+          initialData={initialComments}
+          onCountChange={(delta) =>
+            setCommentCount((value) => Math.max(0, value + delta))
+          }
+        />
+      ) : null}
 
       {related.length > 0 ? (
         <section>

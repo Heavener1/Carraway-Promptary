@@ -16,6 +16,7 @@ from app.schemas.prompt import (
     PromptType,
     PromptUpdate,
 )
+from app.services.interaction_service import get_interaction_flags
 from app.services.prompt_service import (
     create_prompt,
     delete_prompt,
@@ -109,7 +110,12 @@ async def prompt_detail(
         and prompt.visibility == "public"
     ):
         await increment_view(db, prompt)
-    return to_detail(prompt)
+    liked, favorited = await get_interaction_flags(
+        db,
+        prompt.id,
+        viewer.id if viewer else None,
+    )
+    return to_detail(prompt, liked=liked, favorited=favorited)
 
 
 @router.patch("/{prompt_id}", response_model=PromptDetail)

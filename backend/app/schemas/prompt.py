@@ -175,6 +175,8 @@ class PromptDetail(PromptSummary):
     reject_reason: str | None = None
     updated_at: datetime
     assets: list[PromptAssetOut] = Field(default_factory=list)
+    liked: bool = False
+    favorited: bool = False
 
 
 class PromptListResponse(BaseModel):

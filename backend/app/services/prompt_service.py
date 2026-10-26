@@ -324,7 +324,12 @@ def to_summary(prompt: Prompt) -> PromptSummary:
     )
 
 
-def to_detail(prompt: Prompt) -> PromptDetail:
+def to_detail(
+    prompt: Prompt,
+    *,
+    liked: bool = False,
+    favorited: bool = False,
+) -> PromptDetail:
     summary = to_summary(prompt)
     return PromptDetail(
         **summary.model_dump(),
@@ -335,6 +340,8 @@ def to_detail(prompt: Prompt) -> PromptDetail:
         reject_reason=prompt.reject_reason,
         updated_at=prompt.updated_at,
         assets=sorted(prompt.assets, key=lambda asset: asset.sort_order),
+        liked=liked,
+        favorited=favorited,
     )
 
 
